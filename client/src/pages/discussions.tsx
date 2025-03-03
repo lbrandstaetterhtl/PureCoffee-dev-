@@ -82,6 +82,9 @@ export default function DiscussionsPage() {
   const createCommentMutation = useMutation({
     mutationFn: async ({ postId, content }: { postId: number; content: string }) => {
       const res = await apiRequest("POST", "/api/comments", { postId, content });
+      if (!res.ok) {
+        throw new Error("Failed to post comment");
+      }
       return res.json();
     },
     onSuccess: () => {
@@ -89,6 +92,13 @@ export default function DiscussionsPage() {
       toast({
         title: "Comment added",
         description: "Your comment has been posted successfully.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
       });
     },
   });
