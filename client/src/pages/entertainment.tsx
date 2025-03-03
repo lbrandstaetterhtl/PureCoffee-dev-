@@ -229,20 +229,20 @@ export default function EntertainmentPage() {
                     </p>
                   </CardHeader>
                   <CardContent>
-                    <p className="whitespace-pre-wrap">{post.content}</p>
+                    <p className="whitespace-pre-wrap mb-4">{post.content}</p>
                     {post.mediaUrl && (
-                      <div className="mt-4 rounded-lg overflow-hidden">
+                      <div className="mt-4 rounded-lg overflow-hidden bg-gray-100">
                         {post.mediaType === 'image' ? (
                           <img
                             src={post.mediaUrl}
                             alt="Entertainment content"
-                            className="w-full h-auto"
+                            className="w-full h-auto max-h-[500px] object-contain"
                           />
                         ) : post.mediaType === 'video' ? (
                           <video
                             src={post.mediaUrl}
                             controls
-                            className="w-full"
+                            className="w-full max-h-[500px]"
                           />
                         ) : null}
                       </div>
