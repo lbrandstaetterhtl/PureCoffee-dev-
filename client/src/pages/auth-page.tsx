@@ -9,9 +9,14 @@ import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Coffee } from "lucide-react";
 import { insertUserSchema, InsertUser, loginSchema, LoginCredentials } from "@shared/schema";
+import { useLocation } from "wouter";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { CheckCircle2 } from "lucide-react";
 
 export default function AuthPage() {
   const { user, loginMutation, registerMutation } = useAuth();
+  const [location, params] = useLocation();
+  const isVerified = location.includes("verified=true");
 
   if (user) {
     return <Redirect to="/" />;
@@ -21,6 +26,14 @@ export default function AuthPage() {
     <div className="min-h-screen grid lg:grid-cols-2">
       <div className="flex items-center justify-center p-8">
         <div className="mx-auto max-w-md w-full space-y-8">
+          {isVerified && (
+            <Alert className="bg-green-50 border-green-200">
+              <CheckCircle2 className="h-4 w-4 text-green-600" />
+              <AlertDescription className="text-green-700">
+                Your email has been verified! You can now log in.
+              </AlertDescription>
+            </Alert>
+          )}
           <LoginForm />
           <RegisterForm />
         </div>

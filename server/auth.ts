@@ -7,6 +7,8 @@ import { promisify } from "util";
 import { storage } from "./storage";
 import { User as SelectUser } from "@shared/schema";
 import { updateProfileSchema, updatePasswordSchema } from '@shared/schema';
+import { verificationTokens } from "@shared/schema";
+import { sendVerificationEmail } from "./utils/email";
 
 declare global {
   namespace Express {
@@ -27,6 +29,24 @@ async function comparePasswords(supplied: string, stored: string) {
   const hashedBuf = Buffer.from(hashed, "hex");
   const suppliedBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
   return timingSafeEqual(hashedBuf, suppliedBuf);
+}
+
+function generateVerificationToken(): string {
+  return randomBytes(32).toString("hex");
+}
+
+async function createVerificationToken(userId: number): Promise<string> {
+  const token = generateVerificationToken();
+  const expiresAt = new Date();
+  expiresAt.setHours(expiresAt.getHours() + 24); // Token expires in 24 hours
+
+  await storage.createVerificationToken({
+    token,
+    userId,
+    expiresAt,
+  });
+
+  return token;
 }
 
 export function setupAuth(app: Express) {
@@ -87,14 +107,47 @@ export function setupAuth(app: Express) {
       const user = await storage.createUser({
         ...req.body,
         password: await hashPassword(req.body.password),
+        emailVerified: false,
       });
+
+      // Generate and send verification token
+      const verificationToken = await createVerificationToken(user.id);
+      await sendVerificationEmail(user.email, user.username, verificationToken);
 
       req.login(user, (err) => {
         if (err) return res.status(500).send(err.message);
         res.status(201).json(user);
       });
     } catch (err) {
+      console.error('Registration error:', err);
       res.status(500).send("Registration failed");
+    }
+  });
+
+  app.get("/api/verify-email", async (req, res) => {
+    try {
+      const { token } = req.query;
+      if (!token || typeof token !== 'string') {
+        return res.status(400).send("Invalid verification token");
+      }
+
+      const verificationToken = await storage.getVerificationToken(token);
+      if (!verificationToken) {
+        return res.status(400).send("Invalid or expired verification token");
+      }
+
+      if (new Date() > verificationToken.expiresAt) {
+        await storage.deleteVerificationToken(token);
+        return res.status(400).send("Verification token has expired");
+      }
+
+      await storage.verifyUserEmail(verificationToken.userId);
+      await storage.deleteVerificationToken(token);
+
+      res.redirect("/auth?verified=true");
+    } catch (err) {
+      console.error('Verification error:', err);
+      res.status(500).send("Email verification failed");
     }
   });
 

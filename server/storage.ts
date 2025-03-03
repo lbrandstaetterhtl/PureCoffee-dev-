@@ -27,6 +27,21 @@ export interface IStorage {
   updateReportStatus(id: number, status: string): Promise<Report>;
 
   sessionStore: session.Store;
+  createVerificationToken(token: {
+    token: string;
+    userId: number;
+    expiresAt: Date;
+  }): Promise<void>;
+
+  getVerificationToken(token: string): Promise<{
+    token: string;
+    userId: number;
+    expiresAt: Date;
+  } | undefined>;
+
+  deleteVerificationToken(token: string): Promise<void>;
+
+  verifyUserEmail(userId: number): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -36,6 +51,11 @@ export class MemStorage implements IStorage {
   private reports: Map<number, Report>;
   public sessionStore: session.Store;
   private currentIds: { [key: string]: number };
+  private verificationTokens: Map<string, {
+    token: string;
+    userId: number;
+    expiresAt: Date;
+  }>;
 
   constructor() {
     this.users = new Map();
@@ -44,6 +64,7 @@ export class MemStorage implements IStorage {
     this.reports = new Map();
     this.sessionStore = new MemoryStore({ checkPeriod: 86400000 });
     this.currentIds = { users: 1, posts: 1, comments: 1, reports: 1 };
+    this.verificationTokens = new Map();
   }
 
   async getUser(id: number): Promise<User | undefined> {
@@ -177,6 +198,30 @@ export class MemStorage implements IStorage {
     const updated = { ...report, status };
     this.reports.set(id, updated);
     return updated;
+  }
+
+  async createVerificationToken(token: {
+    token: string;
+    userId: number;
+    expiresAt: Date;
+  }): Promise<void> {
+    this.verificationTokens.set(token.token, token);
+  }
+
+  async getVerificationToken(token: string) {
+    return this.verificationTokens.get(token);
+  }
+
+  async deleteVerificationToken(token: string): Promise<void> {
+    this.verificationTokens.delete(token);
+  }
+
+  async verifyUserEmail(userId: number): Promise<void> {
+    const user = await this.getUser(userId);
+    if (!user) throw new Error("User not found");
+
+    const updatedUser = { ...user, emailVerified: true };
+    this.users.set(userId, updatedUser);
   }
 }
 
