@@ -7,7 +7,10 @@ const MemoryStore = createMemoryStore(session);
 export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  updateUserProfile(id: number, profile: Partial<{ username: string; email: string }>): Promise<User>;
+  updateUserPassword(id: number, password: string): Promise<User>;
   updateUserKarma(id: number, karma: number): Promise<User>;
 
   createPost(post: Omit<Post, "id" | "createdAt" | "karma">): Promise<Post>;
@@ -53,6 +56,12 @@ export class MemStorage implements IStorage {
     );
   }
 
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(
+      (user) => user.email === email,
+    );
+  }
+
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = this.currentIds.users++;
     const user: User = {
@@ -63,6 +72,24 @@ export class MemStorage implements IStorage {
     };
     this.users.set(id, user);
     return user;
+  }
+
+  async updateUserProfile(id: number, profile: Partial<{ username: string; email: string }>): Promise<User> {
+    const user = this.users.get(id);
+    if (!user) throw new Error("User not found");
+
+    const updated = { ...user, ...profile };
+    this.users.set(id, updated);
+    return updated;
+  }
+
+  async updateUserPassword(id: number, password: string): Promise<User> {
+    const user = this.users.get(id);
+    if (!user) throw new Error("User not found");
+
+    const updated = { ...user, password };
+    this.users.set(id, updated);
+    return updated;
   }
 
   async updateUserKarma(id: number, karma: number): Promise<User> {

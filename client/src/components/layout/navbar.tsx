@@ -1,7 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
-import { Coffee, MessageSquare, Newspaper, SmilePlus } from "lucide-react";
+import { Coffee, MessageSquare, Newspaper, SmilePlus, UserCircle } from "lucide-react";
 
 export function Navbar() {
   const [location] = useLocation();
@@ -12,6 +12,7 @@ export function Navbar() {
     { href: "/discussions", icon: MessageSquare, label: "Discussions" },
     { href: "/news", icon: Newspaper, label: "News" },
     { href: "/entertainment", icon: SmilePlus, label: "Entertainment" },
+    { href: "/profile", icon: UserCircle, label: "Profile" },
   ];
 
   return (
@@ -23,7 +24,7 @@ export function Navbar() {
             <span className="font-bold">Pure Coffee</span>
           </Link>
         </div>
-        
+
         <div className="flex items-center space-x-4 flex-1 justify-between">
           <div className="flex items-center space-x-4">
             {links.map((link) => (
@@ -38,7 +39,7 @@ export function Navbar() {
               </Link>
             ))}
           </div>
-          
+
           <Button
             variant="ghost"
             onClick={() => logoutMutation.mutate()}

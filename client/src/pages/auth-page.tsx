@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Coffee } from "lucide-react";
-import { insertUserSchema } from "@shared/schema";
+import { insertUserSchema, InsertUser } from "@shared/schema";
 
 export default function AuthPage() {
   const { user, loginMutation, registerMutation } = useAuth();
@@ -105,10 +105,11 @@ function LoginForm() {
 
 function RegisterForm() {
   const { registerMutation } = useAuth();
-  const form = useForm({
+  const form = useForm<InsertUser>({
     resolver: zodResolver(insertUserSchema),
     defaultValues: {
       username: "",
+      email: "",
       password: "",
     },
   });
@@ -129,6 +130,19 @@ function RegisterForm() {
                   <FormLabel>Username</FormLabel>
                   <FormControl>
                     <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Email</FormLabel>
+                  <FormControl>
+                    <Input type="email" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

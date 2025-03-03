@@ -11,6 +11,7 @@ import DiscussionsPage from "@/pages/discussions";
 import NewsPage from "@/pages/news";
 import EntertainmentPage from "@/pages/entertainment";
 import NotFound from "@/pages/not-found";
+import ProfilePage from "@/pages/profile";
 
 function Router() {
   return (
@@ -20,6 +21,7 @@ function Router() {
       <ProtectedRoute path="/discussions" component={DiscussionsPage} />
       <ProtectedRoute path="/news" component={NewsPage} />
       <ProtectedRoute path="/entertainment" component={EntertainmentPage} />
+      <ProtectedRoute path="/profile" component={ProfilePage} />
       <Route component={NotFound} />
     </Switch>
   );

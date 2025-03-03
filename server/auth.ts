@@ -6,7 +6,7 @@ import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
 import { User as SelectUser } from "@shared/schema";
-
+import { updateProfileSchema, updatePasswordSchema } from '@shared/schema';
 declare global {
   namespace Express {
     interface User extends SelectUser {}
@@ -64,6 +64,11 @@ export function setupAuth(app: Express) {
       return res.status(400).send("Username already exists");
     }
 
+    const existingEmail = await storage.getUserByEmail(req.body.email);
+    if (existingEmail) {
+      return res.status(400).send("Email already registered");
+    }
+
     const user = await storage.createUser({
       ...req.body,
       password: await hashPassword(req.body.password),
@@ -73,6 +78,49 @@ export function setupAuth(app: Express) {
       if (err) return next(err);
       res.status(201).json(user);
     });
+  });
+
+  // Add profile update endpoints
+  app.patch("/api/profile", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+
+    const result = updateProfileSchema.safeParse(req.body);
+    if (!result.success) return res.status(400).json(result.error);
+
+    if (result.data.username) {
+      const existingUser = await storage.getUserByUsername(result.data.username);
+      if (existingUser && existingUser.id !== req.user!.id) {
+        return res.status(400).send("Username already taken");
+      }
+    }
+
+    if (result.data.email) {
+      const existingEmail = await storage.getUserByEmail(result.data.email);
+      if (existingEmail && existingEmail.id !== req.user!.id) {
+        return res.status(400).send("Email already registered");
+      }
+    }
+
+    const updatedUser = await storage.updateUserProfile(req.user!.id, result.data);
+    res.json(updatedUser);
+  });
+
+  app.patch("/api/profile/password", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+
+    const result = updatePasswordSchema.safeParse(req.body);
+    if (!result.success) return res.status(400).json(result.error);
+
+    const user = await storage.getUser(req.user!.id);
+    if (!user || !(await comparePasswords(result.data.currentPassword, user.password))) {
+      return res.status(400).send("Current password is incorrect");
+    }
+
+    const updatedUser = await storage.updateUserPassword(
+      req.user!.id,
+      await hashPassword(result.data.newPassword)
+    );
+    res.json(updatedUser);
   });
 
   app.post("/api/login", passport.authenticate("local"), (req, res) => {

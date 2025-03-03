@@ -5,6 +5,7 @@ import { z } from "zod";
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
+  email: text("email").notNull().unique(),
   password: text("password").notNull(),
   karma: integer("karma").notNull().default(5),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -73,7 +74,26 @@ export const insertReportSchema = createInsertSchema(reports).pick({
 
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
+  email: true,
   password: true,
+}).extend({
+  email: z.string().email("Please enter a valid email address"),
+  password: z.string().min(8, "Password must be at least 8 characters long"),
+});
+
+// Add update profile schema
+export const updateProfileSchema = z.object({
+  username: z.string().min(1, "Username is required"),
+  email: z.string().email("Please enter a valid email address"),
+}).partial();
+
+export const updatePasswordSchema = z.object({
+  currentPassword: z.string().min(1, "Current password is required"),
+  newPassword: z.string().min(8, "New password must be at least 8 characters long"),
+  confirmPassword: z.string()
+}).refine((data) => data.newPassword === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
 });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -83,3 +103,5 @@ export type User = typeof users.$inferSelect;
 export type Post = typeof posts.$inferSelect;
 export type Comment = typeof comments.$inferSelect;
 export type Report = typeof reports.$inferSelect;
+export type UpdateProfile = z.infer<typeof updateProfileSchema>;
+export type UpdatePassword = z.infer<typeof updatePasswordSchema>;
