@@ -1,7 +1,7 @@
 import { Navbar } from "@/components/layout/navbar";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
-import { Post, insertPostSchema } from "@shared/schema";
+import { Post, insertMediaPostSchema } from "@shared/schema";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -29,6 +29,7 @@ import { Badge } from "@/components/ui/badge";
 import { ThumbsUp, ThumbsDown, Flag, Loader2, Coffee, SmilePlus } from "lucide-react";
 import { format } from "date-fns";
 import * as z from 'zod';
+import { Report } from "@shared/schema";
 
 export default function EntertainmentPage() {
   const { toast } = useToast();
@@ -43,9 +44,9 @@ export default function EntertainmentPage() {
     },
   });
 
-  type FormData = z.infer<typeof insertPostSchema>;
+  type FormData = z.infer<typeof insertMediaPostSchema>;
   const form = useForm<FormData>({
-    resolver: zodResolver(insertPostSchema),
+    resolver: zodResolver(insertMediaPostSchema),
     defaultValues: {
       title: "",
       content: "",
@@ -55,7 +56,25 @@ export default function EntertainmentPage() {
 
   const createPostMutation = useMutation<Post, Error, FormData>({
     mutationFn: async (data) => {
-      const res = await apiRequest("POST", "/api/posts", data);
+      // Create FormData for file upload
+      const formData = new FormData();
+      formData.append("title", data.title);
+      formData.append("content", data.content);
+      formData.append("category", data.category);
+
+      if (data.mediaUrl) {
+        const mediaFile = form.getValues("mediaFile");
+        if (mediaFile) {
+          formData.append("media", mediaFile[0]);
+        }
+      }
+
+      const res = await fetch("/api/posts", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) throw new Error("Failed to create post");
       return res.json();
     },
     onSuccess: () => {
@@ -78,7 +97,6 @@ export default function EntertainmentPage() {
     },
   });
 
-  type Report = {id: number}
   const reportMutation = useMutation<Report, Error, { postId: number; reason: string }>({
     mutationFn: async ({ postId, reason }) => {
       const res = await apiRequest("POST", "/api/reports", { postId, reason });
@@ -145,6 +163,30 @@ export default function EntertainmentPage() {
                       </FormItem>
                     )}
                   />
+                  <FormField
+                    control={form.control}
+                    name="mediaFile"
+                    render={({ field: { onChange, value, ...field } }) => (
+                      <FormItem>
+                        <FormLabel>Media (Image or Video)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="file"
+                            accept="image/*,video/*"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                onChange(e.target.files);
+                                form.setValue("mediaType", file.type.startsWith("image/") ? "image" : "video");
+                              }
+                            }}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                   <Button
                     type="submit"
                     disabled={createPostMutation.isPending}
@@ -188,6 +230,23 @@ export default function EntertainmentPage() {
                   </CardHeader>
                   <CardContent>
                     <p className="whitespace-pre-wrap">{post.content}</p>
+                    {post.mediaUrl && (
+                      <div className="mt-4 rounded-lg overflow-hidden">
+                        {post.mediaType === 'image' ? (
+                          <img
+                            src={post.mediaUrl}
+                            alt="Entertainment content"
+                            className="w-full h-auto"
+                          />
+                        ) : post.mediaType === 'video' ? (
+                          <video
+                            src={post.mediaUrl}
+                            controls
+                            className="w-full"
+                          />
+                        ) : null}
+                      </div>
+                    )}
                   </CardContent>
                   <CardFooter className="flex justify-between">
                     <div className="flex items-center space-x-4">

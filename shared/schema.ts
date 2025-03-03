@@ -17,6 +17,8 @@ export const posts = pgTable("posts", {
   authorId: integer("author_id").notNull(),
   category: text("category").notNull(), // 'discussion', 'news', 'entertainment'
   karma: integer("karma").notNull().default(5),
+  mediaUrl: text("media_url"),
+  mediaType: text("media_type"), // 'image' or 'video'
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -39,15 +41,23 @@ export const reports = pgTable("reports", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-export const insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
-});
-
-export const insertPostSchema = createInsertSchema(posts).pick({
+// Base post schema
+const basePostSchema = createInsertSchema(posts).pick({
   title: true,
   content: true,
   category: true,
+});
+
+// Discussion post schema (text only)
+export const insertDiscussionPostSchema = basePostSchema.extend({
+  category: z.literal("discussion"),
+});
+
+// News and entertainment post schema (with media)
+export const insertMediaPostSchema = basePostSchema.extend({
+  category: z.enum(["news", "entertainment"]),
+  mediaUrl: z.string().optional(),
+  mediaType: z.enum(["image", "video"]).optional(),
 });
 
 export const insertCommentSchema = createInsertSchema(comments).pick({
@@ -61,7 +71,14 @@ export const insertReportSchema = createInsertSchema(reports).pick({
   commentId: true,
 });
 
+export const insertUserSchema = createInsertSchema(users).pick({
+  username: true,
+  password: true,
+});
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
+export type InsertDiscussionPost = z.infer<typeof insertDiscussionPostSchema>;
+export type InsertMediaPost = z.infer<typeof insertMediaPostSchema>;
 export type User = typeof users.$inferSelect;
 export type Post = typeof posts.$inferSelect;
 export type Comment = typeof comments.$inferSelect;

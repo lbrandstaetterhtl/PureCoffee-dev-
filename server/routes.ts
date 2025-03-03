@@ -2,7 +2,31 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
-import { insertPostSchema, insertCommentSchema, insertReportSchema } from "@shared/schema";
+import multer from "multer";
+import path from "path";
+import express from "express";
+import { insertDiscussionPostSchema, insertMediaPostSchema, insertCommentSchema, insertReportSchema } from "@shared/schema";
+
+// Configure multer for file uploads
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: "./uploads",
+    filename: function (req, file, cb) {
+      cb(null, Date.now() + path.extname(file.originalname));
+    }
+  }),
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ["image/jpeg", "image/png", "image/gif", "video/mp4", "video/webm"];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error("Invalid file type"));
+    }
+  },
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB limit
+  }
+});
 
 export async function registerRoutes(app: Express): Promise<Server> {
   setupAuth(app);
@@ -11,6 +35,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (req.isAuthenticated()) return next();
     res.status(401).send("Unauthorized");
   };
+
+  // Serve uploaded files
+  app.use("/uploads", express.static("uploads"));
 
   // Posts
   app.get("/api/posts", async (req, res) => {
@@ -25,21 +52,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(post);
   });
 
-  app.post("/api/posts", isAuthenticated, async (req, res) => {
-    const result = insertPostSchema.safeParse(req.body);
+  app.post("/api/posts", isAuthenticated, upload.single("media"), async (req, res) => {
+    const category = req.body.category;
+
+    // Validate based on category
+    const schema = category === "discussion" ? insertDiscussionPostSchema : insertMediaPostSchema;
+    const result = schema.safeParse(req.body);
+
     if (!result.success) return res.status(400).json(result.error);
-    
+
+    let mediaUrl = null;
+    let mediaType = null;
+
+    if (req.file && category !== "discussion") {
+      mediaUrl = `/uploads/${req.file.filename}`;
+      mediaType = req.file.mimetype.startsWith("image/") ? "image" : "video";
+    }
+
     const post = await storage.createPost({
       ...result.data,
       authorId: req.user!.id,
+      mediaUrl,
+      mediaType,
     });
+
     res.status(201).json(post);
   });
 
   app.post("/api/posts/:id/karma", isAuthenticated, async (req, res) => {
     const { karma } = req.body;
     if (typeof karma !== "number") return res.status(400).send("Invalid karma value");
-    
+
     const post = await storage.updatePostKarma(parseInt(req.params.id), karma);
     res.json(post);
   });
@@ -53,7 +96,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/comments", isAuthenticated, async (req, res) => {
     const result = insertCommentSchema.safeParse(req.body);
     if (!result.success) return res.status(400).json(result.error);
-    
+
     const comment = await storage.createComment({
       ...result.data,
       authorId: req.user!.id,
@@ -64,7 +107,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/comments/:id/karma", isAuthenticated, async (req, res) => {
     const { karma } = req.body;
     if (typeof karma !== "number") return res.status(400).send("Invalid karma value");
-    
+
     const comment = await storage.updateCommentKarma(parseInt(req.params.id), karma);
     res.json(comment);
   });
@@ -78,7 +121,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/reports", isAuthenticated, async (req, res) => {
     const result = insertReportSchema.safeParse(req.body);
     if (!result.success) return res.status(400).json(result.error);
-    
+
     const report = await storage.createReport({
       ...result.data,
       reporterId: req.user!.id,
@@ -89,7 +132,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/reports/:id/status", isAuthenticated, async (req, res) => {
     const { status } = req.body;
     if (typeof status !== "string") return res.status(400).send("Invalid status");
-    
+
     const report = await storage.updateReportStatus(parseInt(req.params.id), status);
     res.json(report);
   });

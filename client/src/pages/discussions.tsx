@@ -1,7 +1,7 @@
 import { Navbar } from "@/components/layout/navbar";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
-import { Post, insertPostSchema } from "@shared/schema";
+import { Post, insertDiscussionPostSchema } from "@shared/schema";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -44,9 +44,9 @@ export default function DiscussionsPage() {
     },
   });
 
-  type FormData = z.infer<typeof insertPostSchema>;
+  type FormData = z.infer<typeof insertDiscussionPostSchema>;
   const form = useForm<FormData>({
-    resolver: zodResolver(insertPostSchema),
+    resolver: zodResolver(insertDiscussionPostSchema),
     defaultValues: {
       title: "",
       content: "",

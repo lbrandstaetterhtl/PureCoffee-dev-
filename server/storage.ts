@@ -1,4 +1,4 @@
-import { User, Post, Comment, Report, InsertUser, Post as SelectPost, Comment as SelectComment, Report as SelectReport } from "@shared/schema";
+import { User, Post, Comment, Report, InsertUser, InsertDiscussionPost, InsertMediaPost } from "@shared/schema";
 import session from "express-session";
 import createMemoryStore from "memorystore";
 
@@ -9,20 +9,20 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUserKarma(id: number, karma: number): Promise<User>;
-  
+
   createPost(post: Omit<Post, "id" | "createdAt" | "karma">): Promise<Post>;
   getPosts(category?: string): Promise<Post[]>;
   getPost(id: number): Promise<Post | undefined>;
   updatePostKarma(id: number, karma: number): Promise<Post>;
-  
+
   createComment(comment: Omit<Comment, "id" | "createdAt" | "karma">): Promise<Comment>;
   getComments(postId: number): Promise<Comment[]>;
   updateCommentKarma(id: number, karma: number): Promise<Comment>;
-  
+
   createReport(report: Omit<Report, "id" | "createdAt" | "status">): Promise<Report>;
   getReports(): Promise<Report[]>;
   updateReportStatus(id: number, status: string): Promise<Report>;
-  
+
   sessionStore: session.Store;
 }
 
@@ -80,6 +80,8 @@ export class MemStorage implements IStorage {
       id,
       karma: 5,
       createdAt: new Date(),
+      mediaUrl: post.mediaUrl || null,
+      mediaType: post.mediaType || null,
     };
     this.posts.set(id, newPost);
     return newPost;
