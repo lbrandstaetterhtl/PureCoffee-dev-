@@ -38,7 +38,13 @@ type PostWithAuthor = Post & {
     author: { username: string };
     createdAt: string;
   }>;
-  hasLiked: boolean;
+  reactions: {
+    likes: number;
+    dislikes: number;
+  };
+  userReaction: {
+    isLike: boolean;
+  } | null;
 };
 
 export default function DiscussionsPage() {
@@ -49,7 +55,7 @@ export default function DiscussionsPage() {
   const { data: posts, isLoading } = useQuery<PostWithAuthor[]>({
     queryKey: ["/api/posts", "discussion"],
     queryFn: async () => {
-      const res = await fetch("/api/posts?category=discussion&include=author,comments");
+      const res = await fetch("/api/posts?category=discussion&include=author,comments,reactions,userReaction");
       if (!res.ok) throw new Error("Failed to fetch posts");
       return res.json();
     },
@@ -117,9 +123,9 @@ export default function DiscussionsPage() {
     },
   });
 
-  const likeMutation = useMutation<Post, Error, { postId: number }>({
-    mutationFn: async ({ postId }) => {
-      const res = await apiRequest("POST", `/api/posts/${postId}/like`);
+  const reactionMutation = useMutation<Post, Error, { postId: number; isLike: boolean }>({
+    mutationFn: async ({ postId, isLike }) => {
+      const res = await apiRequest("POST", `/api/posts/${postId}/react`, { isLike });
       return res.json();
     },
     onSuccess: () => {
@@ -276,24 +282,20 @@ export default function DiscussionsPage() {
                   <CardFooter className="flex justify-between">
                     <div className="flex items-center space-x-4">
                       <Button
-                        variant={post.hasLiked ? "default" : "ghost"}
+                        variant={post.userReaction?.isLike ? "default" : "ghost"}
                         size="sm"
-                        onClick={() => likeMutation.mutate({ postId: post.id })}
+                        onClick={() => reactionMutation.mutate({ postId: post.id, isLike: true })}
                       >
-                        <ThumbsUp className={`h-4 w-4 mr-1 ${post.hasLiked ? "fill-current" : ""}`} />
-                        <span>{post.karma}</span>
+                        <ThumbsUp className={`h-4 w-4 mr-1 ${post.userReaction?.isLike ? "fill-current" : ""}`} />
+                        <span>{post.reactions.likes}</span>
                       </Button>
                       <Button
-                        variant="ghost"
+                        variant={post.userReaction?.isLike === false ? "default" : "ghost"}
                         size="sm"
-                        onClick={() =>
-                          karmaUpdateMutation.mutate({
-                            postId: post.id,
-                            karma: post.karma - 1,
-                          })
-                        }
+                        onClick={() => reactionMutation.mutate({ postId: post.id, isLike: false })}
                       >
-                        <ThumbsDown className="h-4 w-4" />
+                        <ThumbsDown className={`h-4 w-4 mr-1 ${post.userReaction?.isLike === false ? "fill-current" : ""}`} />
+                        <span>{post.reactions.dislikes}</span>
                       </Button>
                     </div>
                     <Button

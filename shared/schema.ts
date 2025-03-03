@@ -55,6 +55,7 @@ export const postLikes = pgTable("post_likes", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull(),
   postId: integer("post_id").notNull(),
+  isLike: boolean("is_like").notNull(), // true for like, false for dislike
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

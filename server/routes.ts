@@ -45,8 +45,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const category = req.query.category as string | undefined;
       const posts = await storage.getPosts(category);
 
-      // Get authors and likes for each post
-      const postsWithAuthors = await Promise.all(posts.map(async (post) => {
+      const postsWithDetails = await Promise.all(posts.map(async (post) => {
         const author = await storage.getUser(post.authorId);
         const comments = await storage.getComments(post.id);
         const commentsWithAuthors = await Promise.all(comments.map(async (comment) => {
@@ -57,17 +56,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           };
         }));
 
-        const hasLiked = req.user ? await storage.hasUserLikedPost(req.user.id, post.id) : false;
+        const reactions = await storage.getPostReactions(post.id);
+        const userReaction = req.user ? await storage.getUserPostReaction(req.user.id, post.id) : null;
 
         return {
           ...post,
           author: { username: author?.username || 'Unknown' },
           comments: commentsWithAuthors,
-          hasLiked
+          reactions,
+          userReaction
         };
       }));
 
-      res.json(postsWithAuthors);
+      res.json(postsWithDetails);
     } catch (error) {
       console.error('Error fetching posts:', error);
       res.status(500).send("Failed to fetch posts");
@@ -168,30 +169,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/posts/:id/like", isAuthenticated, async (req, res) => {
+  app.post("/api/posts/:id/react", isAuthenticated, async (req, res) => {
     try {
       const postId = parseInt(req.params.id);
       const userId = req.user!.id;
+      const { isLike } = req.body;
 
-      const hasLiked = await storage.hasUserLikedPost(userId, postId);
+      if (typeof isLike !== 'boolean') {
+        return res.status(400).send("Invalid reaction type");
+      }
 
-      if (hasLiked) {
-        await storage.removePostLike(userId, postId);
-      } else {
-        await storage.createPostLike(userId, postId);
+      const currentReaction = await storage.getUserPostReaction(userId, postId);
+
+      // Remove existing reaction if it exists
+      if (currentReaction !== null) {
+        await storage.removePostReaction(userId, postId);
+      }
+
+      // Add new reaction if it's different from the current one
+      if (currentReaction === null || currentReaction.isLike !== isLike) {
+        await storage.createPostLike(userId, postId, isLike);
       }
 
       const post = await storage.getPost(postId);
       if (!post) return res.status(404).send("Post not found");
 
-      const hasLikedNow = await storage.hasUserLikedPost(userId, postId);
-      res.json({ ...post, hasLiked: hasLikedNow });
+      const reactions = await storage.getPostReactions(postId);
+      const userReaction = await storage.getUserPostReaction(userId, postId);
+
+      res.json({ ...post, reactions, userReaction });
     } catch (error) {
-      console.error('Error updating like:', error);
-      res.status(500).send("Failed to update like");
+      console.error('Error updating reaction:', error);
+      res.status(500).send("Failed to update reaction");
     }
   });
-
 
   // Reports
   app.get("/api/reports", isAuthenticated, async (req, res) => {
