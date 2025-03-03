@@ -8,11 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Coffee } from "lucide-react";
-import { insertUserSchema, InsertUser } from "@shared/schema";
+import { insertUserSchema, InsertUser, loginSchema, LoginCredentials } from "@shared/schema";
 
 export default function AuthPage() {
   const { user, loginMutation, registerMutation } = useAuth();
-  
+
   if (user) {
     return <Redirect to="/" />;
   }
@@ -25,18 +25,18 @@ export default function AuthPage() {
           <RegisterForm />
         </div>
       </div>
-      
+
       <div className="hidden lg:flex flex-col justify-center p-8 bg-primary/5">
         <div className="mx-auto max-w-md w-full">
           <div className="flex items-center space-x-2 mb-8">
             <Coffee className="h-12 w-12 text-primary" />
             <h1 className="text-4xl font-bold">Pure Coffee</h1>
           </div>
-          
+
           <p className="text-xl text-muted-foreground mb-4">
             Join the community where meaningful discussions brew.
           </p>
-          
+
           <ul className="space-y-4 text-muted-foreground">
             <li>✓ Quality discussions on important topics</li>
             <li>✓ Fact-checked news you can trust</li>
@@ -51,8 +51,8 @@ export default function AuthPage() {
 
 function LoginForm() {
   const { loginMutation } = useAuth();
-  const form = useForm({
-    resolver: zodResolver(insertUserSchema),
+  const form = useForm<LoginCredentials>({
+    resolver: zodResolver(loginSchema),
     defaultValues: {
       username: "",
       password: "",

@@ -81,6 +81,14 @@ export const insertUserSchema = createInsertSchema(users).pick({
   password: z.string().min(8, "Password must be at least 8 characters long"),
 });
 
+// Add login schema after the insertUserSchema
+export const loginSchema = z.object({
+  username: z.string().min(1, "Username is required"),
+  password: z.string().min(1, "Password is required"),
+});
+
+export type LoginCredentials = z.infer<typeof loginSchema>;
+
 // Add update profile schema
 export const updateProfileSchema = z.object({
   username: z.string().min(1, "Username is required"),
