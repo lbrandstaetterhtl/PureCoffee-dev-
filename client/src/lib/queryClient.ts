@@ -12,10 +12,7 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
-  // Remove any double slashes from the URL except after http(s):
-  const cleanUrl = url.replace(/([^:])\/\/+/g, '$1/');
-
-  const res = await fetch(cleanUrl, {
+  const res = await fetch(url, {
     method,
     headers: data ? { "Content-Type": "application/json" } : {},
     body: data ? JSON.stringify(data) : undefined,
@@ -32,10 +29,7 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    // Clean the URL by removing double slashes
-    const url = (queryKey[0] as string).replace(/([^:])\/\/+/g, '$1/');
-
-    const res = await fetch(url, {
+    const res = await fetch(queryKey[0] as string, {
       credentials: "include",
     });
 

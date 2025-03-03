@@ -81,19 +81,7 @@ export default function DiscussionsPage() {
 
   const createCommentMutation = useMutation({
     mutationFn: async ({ postId, content }: { postId: number; content: string }) => {
-      const res = await fetch("/api/comments", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({ postId, content })
-      });
-
-      if (!res.ok) {
-        const errorText = await res.text();
-        throw new Error(errorText || "Failed to post comment");
-      }
+      const res = await apiRequest("POST", "/api/comments", { postId, content });
       return res.json();
     },
     onSuccess: () => {
@@ -101,13 +89,6 @@ export default function DiscussionsPage() {
       toast({
         title: "Comment added",
         description: "Your comment has been posted successfully.",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error posting comment",
-        description: error.message,
-        variant: "destructive",
       });
     },
   });

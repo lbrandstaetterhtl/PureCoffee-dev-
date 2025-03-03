@@ -73,9 +73,6 @@ export const insertMediaPostSchema = basePostSchema.extend({
 export const insertCommentSchema = createInsertSchema(comments).pick({
   content: true,
   postId: true,
-}).extend({
-  content: z.string().min(1, "Comment cannot be empty"),
-  postId: z.number().int("Invalid post ID"),
 });
 
 export const insertReportSchema = createInsertSchema(reports).pick({

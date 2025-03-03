@@ -146,14 +146,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!result.success) return res.status(400).json(result.error);
 
     try {
-      // Create the comment
       const comment = await storage.createComment({
-        content: result.data.content,
-        postId: result.data.postId,
+        ...result.data,
         authorId: req.user!.id,
       });
 
-      // Get the author information
       const author = await storage.getUser(comment.authorId);
       const commentWithAuthor = {
         ...comment,
@@ -196,8 +193,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const report = await storage.createReport({
       ...result.data,
       reporterId: req.user!.id,
-      postId: result.data.postId || null,
-      commentId: result.data.commentId || null,
     });
     res.status(201).json(report);
   });
