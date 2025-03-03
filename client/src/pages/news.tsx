@@ -39,6 +39,13 @@ type PostWithAuthor = Post & {
     author: { username: string };
     createdAt: string;
   }>;
+  reactions: {
+    likes: number;
+    dislikes: number;
+  };
+  userReaction: {
+    isLike: boolean;
+  } | null;
 };
 
 export default function NewsPage() {
@@ -48,7 +55,7 @@ export default function NewsPage() {
   const { data: posts, isLoading } = useQuery<PostWithAuthor[]>({
     queryKey: ["/api/posts", "news"],
     queryFn: async () => {
-      const res = await fetch("/api/posts?category=news&include=author,comments");
+      const res = await fetch("/api/posts?category=news&include=author,comments,reactions,userReaction");
       if (!res.ok) throw new Error("Failed to fetch posts");
       return res.json();
     },
@@ -128,6 +135,16 @@ export default function NewsPage() {
         title: "Report submitted",
         description: "Thank you for helping combat misinformation.",
       });
+    },
+  });
+
+  const reactionMutation = useMutation<Post, Error, { postId: number; isLike: boolean }>({
+    mutationFn: async ({ postId, isLike }) => {
+      const res = await apiRequest("POST", `/api/posts/${postId}/react`, { isLike });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/posts", "news"] });
     },
   });
 
@@ -337,29 +354,20 @@ export default function NewsPage() {
                   <CardFooter className="flex justify-between">
                     <div className="flex items-center space-x-4">
                       <Button
-                        variant="ghost"
+                        variant={post.userReaction?.isLike ? "default" : "ghost"}
                         size="sm"
-                        onClick={() =>
-                          karmaUpdateMutation.mutate({
-                            postId: post.id,
-                            karma: post.karma + 1,
-                          })
-                        }
+                        onClick={() => reactionMutation.mutate({ postId: post.id, isLike: true })}
                       >
-                        <ThumbsUp className="h-4 w-4 mr-1" />
-                        <span>{post.karma}</span>
+                        <ThumbsUp className={`h-4 w-4 mr-1 ${post.userReaction?.isLike ? "fill-current" : ""}`} />
+                        <span>{post.reactions.likes}</span>
                       </Button>
                       <Button
-                        variant="ghost"
+                        variant={post.userReaction?.isLike === false ? "default" : "ghost"}
                         size="sm"
-                        onClick={() =>
-                          karmaUpdateMutation.mutate({
-                            postId: post.id,
-                            karma: post.karma - 1,
-                          })
-                        }
+                        onClick={() => reactionMutation.mutate({ postId: post.id, isLike: false })}
                       >
-                        <ThumbsDown className="h-4 w-4" />
+                        <ThumbsDown className={`h-4 w-4 mr-1 ${post.userReaction?.isLike === false ? "fill-current" : ""}`} />
+                        <span>{post.reactions.dislikes}</span>
                       </Button>
                     </div>
                     <Button
