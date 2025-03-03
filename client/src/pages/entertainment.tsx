@@ -28,7 +28,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { ThumbsUp, ThumbsDown, Flag, Loader2, Coffee, SmilePlus } from "lucide-react";
 import { format } from "date-fns";
-import * as z from 'zod'
+import * as z from 'zod';
 
 export default function EntertainmentPage() {
   const { toast } = useToast();

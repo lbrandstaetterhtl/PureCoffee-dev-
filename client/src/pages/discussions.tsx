@@ -27,14 +27,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ThumbsUp, ThumbsDown, Flag, Loader2 } from "lucide-react";
 import { format } from "date-fns";
-import * as z from 'zod'
+import * as z from 'zod';
 import { Report } from "@shared/schema";
-
 
 export default function DiscussionsPage() {
   const { toast } = useToast();
   const { user } = useAuth();
 
+  // Query for discussion posts
   const { data: posts, isLoading } = useQuery<Post[]>({
     queryKey: ["/api/posts", "discussion"],
     queryFn: async () => {
