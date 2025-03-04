@@ -56,7 +56,10 @@ export default function CreateEntertainmentPage() {
       return res.json();
     },
     onSuccess: () => {
+      // Invalidate both the media feed and the specific category feed
       queryClient.invalidateQueries({ queryKey: ["/api/posts", "media"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/posts", "entertainment"] });
+      form.reset();
       toast({
         title: "Post created",
         description: "Your entertainment post has been shared successfully.",

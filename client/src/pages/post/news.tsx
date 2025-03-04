@@ -56,7 +56,10 @@ export default function CreateNewsPage() {
       return res.json();
     },
     onSuccess: () => {
+      // Invalidate both the media feed and the specific category feed
       queryClient.invalidateQueries({ queryKey: ["/api/posts", "media"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/posts", "news"] });
+      form.reset();
       toast({
         title: "News posted",
         description: "Your news article has been posted successfully.",

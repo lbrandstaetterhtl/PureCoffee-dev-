@@ -43,7 +43,7 @@ export default function MediaFeedPage() {
   const { data: posts, isLoading } = useQuery<PostWithAuthor[]>({
     queryKey: ["/api/posts", "media"],
     queryFn: async () => {
-      const res = await fetch("/api/posts?category=news,entertainment");
+      const res = await fetch("/api/posts?category=news,entertainment&include=author,comments,reactions,userReaction");
       if (!res.ok) throw new Error("Failed to fetch posts");
       return res.json();
     },
