@@ -190,7 +190,8 @@ export default function AdminDashboard() {
                             </TableCell>
                             <TableCell>
                               <div className="flex items-center space-x-2">
-                                {!user.isAdmin && (
+                                {/* Show all actions for pure-coffee, or only non-admin actions for other admins */}
+                                {(!user.isAdmin || user?.username === 'pure-coffee') && (
                                   <>
                                     <Button
                                       size="sm"
@@ -258,7 +259,7 @@ export default function AdminDashboard() {
                                               });
                                             }
                                           }}
-                                          disabled={updateUserMutation.isPending}
+                                          disabled={updateUserMutation.isPending || user.isAdmin}
                                         >
                                           <Shield className="h-4 w-4 mr-1" />
                                           Make Admin
