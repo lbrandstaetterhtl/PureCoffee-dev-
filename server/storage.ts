@@ -1,4 +1,4 @@
-import { users, messages as messagesTable, notifications as notificationsTable, User, Post, Comment, Report, InsertUser, InsertDiscussionPost, InsertMediaPost, Notification, Message, followers, notifications, messages } from "@shared/schema";
+import { users, messages as messagesTable, notifications as notificationsTable, posts as postsTable, comments as commentsTable, User, Post, Comment, Report, InsertUser, InsertDiscussionPost, InsertMediaPost, Notification, Message, followers, notifications, messages } from "@shared/schema";
 import session from "express-session";
 import { db } from "./db";
 import { eq, and, or, desc, asc, sql } from "drizzle-orm";
@@ -132,38 +132,38 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createPost(post: Omit<Post, "id" | "createdAt" | "karma">): Promise<Post> {
-    const [newPost] = await db.insert(posts).values(post).returning();
+    const [newPost] = await db.insert(postsTable).values(post).returning();
     return newPost;
   }
 
   async getPosts(category?: string): Promise<Post[]> {
     if (category) {
-      return db.select().from(posts).where(eq(posts.category, category));
+      return db.select().from(postsTable).where(eq(postsTable.category, category));
     }
-    return db.select().from(posts);
+    return db.select().from(postsTable);
   }
 
   async getPost(id: number): Promise<Post | undefined> {
-    const [post] = await db.select().from(posts).where(eq(posts.id, id));
+    const [post] = await db.select().from(postsTable).where(eq(postsTable.id, id));
     return post;
   }
 
   async updatePostKarma(id: number, karma: number): Promise<Post> {
-    const [post] = await db.update(posts).set({ karma }).where(eq(posts.id, id)).returning();
+    const [post] = await db.update(postsTable).set({ karma }).where(eq(postsTable.id, id)).returning();
     return post;
   }
 
   async createComment(comment: Omit<Comment, "id" | "createdAt" | "karma">): Promise<Comment> {
-    const [newComment] = await db.insert(comments).values(comment).returning();
+    const [newComment] = await db.insert(commentsTable).values(comment).returning();
     return newComment;
   }
 
   async getComments(postId: number): Promise<Comment[]> {
-    return db.select().from(comments).where(eq(comments.postId, postId));
+    return db.select().from(commentsTable).where(eq(commentsTable.postId, postId));
   }
 
   async updateCommentKarma(id: number, karma: number): Promise<Comment> {
-    const [comment] = await db.update(comments).set({ karma }).where(eq(comments.id, id)).returning();
+    const [comment] = await db.update(commentsTable).set({ karma }).where(eq(commentsTable.id, id)).returning();
     return comment;
   }
 
