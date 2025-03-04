@@ -227,6 +227,33 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
     }
   });
 
+  // Add new routes for comment likes
+  app.post("/api/comments/:id/like", isAuthenticated, async (req, res) => {
+    try {
+      const commentId = parseInt(req.params.id);
+      const userId = req.user!.id;
+
+      const comment = await storage.getComment(commentId);
+      if (!comment) {
+        return res.status(404).send("Comment not found");
+      }
+
+      const isLiked = await storage.getUserCommentLike(userId, commentId);
+
+      if (isLiked) {
+        await storage.unlikeComment(userId, commentId);
+      } else {
+        await storage.likeComment(userId, commentId);
+      }
+
+      const likesCount = await storage.getCommentLikes(commentId);
+      res.json({ likes: likesCount, isLiked: !isLiked });
+    } catch (error) {
+      console.error('Error updating comment like:', error);
+      res.status(500).send("Failed to update comment like");
+    }
+  });
+
   app.post("/api/posts/:id/react", isAuthenticated, async (req, res) => {
     try {
       const postId = parseInt(req.params.id);
@@ -591,7 +618,7 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
         return res.status(404).send("Post author not found");
       }
 
-      const canDelete = 
+      const canDelete =
         req.user!.role === 'owner' || // Owner can delete anything
         (req.user!.role === 'admin' && targetUser.role !== 'owner') || // Admin can delete user content
         post.authorId === req.user!.id; // Users can delete their own content
@@ -637,7 +664,7 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
         return res.status(404).send("Comment author not found");
       }
 
-      const canDelete = 
+      const canDelete =
         req.user!.role === 'owner' || // Owner can delete anything
         (req.user!.role === 'admin' && targetUser.role !== 'owner') || // Admin can delete user content
         comment.authorId === req.user!.id; // Users can delete their own content

@@ -1,4 +1,4 @@
-import { User, Post, Comment, Report, InsertUser, InsertMediaPost, Notification, Message, followers, notifications, messages, verificationTokens } from "@shared/schema";
+import { User, Post, Comment, Report, InsertUser, InsertMediaPost, Notification, Message, followers, notifications, messages, verificationTokens, commentLikes } from "@shared/schema";
 import session from "express-session";
 import { db } from "./db";
 import { eq, and, or, desc, asc, sql } from "drizzle-orm";
@@ -86,6 +86,12 @@ export interface IStorage {
   getUsers(): Promise<User[]>;
   getReport(id: number): Promise<Report | undefined>;
   deleteUser(id: number): Promise<void>;
+
+  // Add new methods for comment likes
+  likeComment(userId: number, commentId: number): Promise<void>;
+  unlikeComment(userId: number, commentId: number): Promise<void>;
+  getUserCommentLike(userId: number, commentId: number): Promise<boolean>;
+  getCommentLikes(commentId: number): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -579,6 +585,35 @@ export class DatabaseStorage implements IStorage {
       console.error('Error deleting reports for comment:', error);
       throw error;
     }
+  }
+
+  async likeComment(userId: number, commentId: number): Promise<void> {
+    await db.insert(commentLikes).values({ userId, commentId });
+  }
+
+  async unlikeComment(userId: number, commentId: number): Promise<void> {
+    await db.delete(commentLikes)
+      .where(and(
+        eq(commentLikes.userId, userId),
+        eq(commentLikes.commentId, commentId)
+      ));
+  }
+
+  async getUserCommentLike(userId: number, commentId: number): Promise<boolean> {
+    const [like] = await db.select()
+      .from(commentLikes)
+      .where(and(
+        eq(commentLikes.userId, userId),
+        eq(commentLikes.commentId, commentId)
+      ));
+    return !!like;
+  }
+
+  async getCommentLikes(commentId: number): Promise<number> {
+    const result = await db.select({ count: sql<number>`count(*)` })
+      .from(commentLikes)
+      .where(eq(commentLikes.commentId, commentId));
+    return result[0].count;
   }
 }
 

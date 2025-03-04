@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { ThumbsUp, ThumbsDown, Flag, Loader2, MessageCircle, Trash2, Plus } from "lucide-react";
+import { ThumbsUp, ThumbsDown, Flag, Loader2, MessageCircle, Trash2, Plus, Heart } from "lucide-react";
 import { format } from "date-fns";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -21,13 +21,15 @@ type PostWithAuthor = Post & {
     username: string;
     id: number;
     isFollowing: boolean;
-    role: string; // Added role property
+    role: string;
   };
   comments: Array<{
     id: number;
     content: string;
-    author: { username: string; role: string }; // Added role property
+    author: { username: string; role: string };
     createdAt: string;
+    likes: number;
+    isLiked: boolean;
   }>;
   reactions: {
     likes: number;
@@ -193,6 +195,16 @@ export default function MediaFeedPage() {
     },
   });
 
+  const likeCommentMutation = useMutation({
+    mutationFn: async (commentId: number) => {
+      const res = await apiRequest("POST", `/api/comments/${commentId}/like`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/posts", "media"] });
+    },
+  });
+
   return (
     <>
       <Navbar />
@@ -355,23 +367,35 @@ export default function MediaFeedPage() {
                                   </span>
                                 </div>
                               </div>
-                              {(comment.author.username === user?.username ||
-                                user?.role === 'owner' ||
-                                (user?.role === 'admin' && comment.author.role !== 'owner')) && (
+                              <div className="flex items-center space-x-2">
                                 <Button
-                                  variant="ghost"
+                                  variant={comment.isLiked ? "default" : "ghost"}
                                   size="sm"
-                                  onClick={() => {
-                                    if (window.confirm("Are you sure you want to delete this comment?")) {
-                                      deleteCommentMutation.mutate({ postId: post.id, commentId: comment.id });
-                                    }
-                                  }}
-                                  disabled={deleteCommentMutation.isPending}
-                                  className="h-8 w-8 p-0"
+                                  onClick={() => likeCommentMutation.mutate(comment.id)}
+                                  disabled={likeCommentMutation.isPending}
+                                  className="h-8"
                                 >
-                                  <Trash2 className="h-4 w-4" />
+                                  <Heart className={`h-4 w-4 mr-1 ${comment.isLiked ? "fill-current" : ""}`} />
+                                  <span className="text-xs">{comment.likes}</span>
                                 </Button>
-                              )}
+                                {(comment.author.username === user?.username ||
+                                  user?.role === 'owner' ||
+                                  (user?.role === 'admin' && comment.author.role !== 'owner')) && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      if (window.confirm("Are you sure you want to delete this comment?")) {
+                                        deleteCommentMutation.mutate({ postId: post.id, commentId: comment.id });
+                                      }
+                                    }}
+                                    disabled={deleteCommentMutation.isPending}
+                                    className="h-8 w-8 p-0"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                )}
+                              </div>
                             </div>
                             <p className="text-xs lg:text-sm mt-2 pl-10">{comment.content}</p>
                           </div>

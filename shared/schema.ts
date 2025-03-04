@@ -87,6 +87,13 @@ export const postLikes = pgTable("post_likes", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const commentLikes = pgTable("comment_likes", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  commentId: integer("comment_id").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 const basePostSchema = createInsertSchema(posts).pick({
   title: true,
   content: true,
