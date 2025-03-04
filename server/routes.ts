@@ -333,6 +333,9 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
 
       // If report is resolved, take action based on the reported content
       if (status === "resolved") {
+        // First update the report status to break the foreign key constraint
+        await storage.updateReportStatus(reportId, status);
+
         if (report.postId) {
           // Delete the post and all associated content
           await storage.deleteComments(report.postId);
@@ -349,10 +352,13 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
           await storage.deleteReports(report.discussionId);
           await storage.deletePost(report.discussionId);
         }
-      }
 
-      const updatedReport = await storage.updateReportStatus(reportId, status);
-      res.json(updatedReport);
+        res.json(report);
+      } else {
+        // For rejected reports, just update the status
+        const updatedReport = await storage.updateReportStatus(reportId, status);
+        res.json(updatedReport);
+      }
     } catch (error) {
       console.error('Error updating report:', error);
       res.status(500).send("Failed to update report status");
