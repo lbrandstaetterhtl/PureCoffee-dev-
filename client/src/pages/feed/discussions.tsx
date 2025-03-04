@@ -1,9 +1,20 @@
 import { Navbar } from "@/components/layout/navbar";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Post } from "@shared/schema";
+import { Post, Report } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { ThumbsUp, ThumbsDown, Flag, Loader2, MessageCircle } from "lucide-react";
 import { format } from "date-fns";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -56,6 +67,19 @@ export default function DiscussionsFeedPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/posts", "discussions"] });
+    },
+  });
+
+  const reportMutation = useMutation<Report, Error, { discussionId: number; reason: string }>({
+    mutationFn: async ({ discussionId, reason }) => {
+      const res = await apiRequest("POST", "/api/reports", { discussionId, reason });
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Report submitted",
+        description: "Thank you for helping keep our community safe.",
+      });
     },
   });
 
@@ -205,12 +229,12 @@ export default function DiscussionsFeedPage() {
                           data-post-id={post.id}
                           placeholder="Write a comment..."
                           onKeyPress={(e) => {
-                            if (e.key === 'Enter' && (e.target as HTMLInputElement).value.trim()) {
+                            if (e.key === "Enter" && (e.target as HTMLInputElement).value.trim()) {
                               createCommentMutation.mutate({
                                 postId: post.id,
-                                content: (e.target as HTMLInputElement).value.trim()
+                                content: (e.target as HTMLInputElement).value.trim(),
                               });
-                              (e.target as HTMLInputElement).value = '';
+                              (e.target as HTMLInputElement).value = "";
                             }
                           }}
                         />
@@ -218,13 +242,15 @@ export default function DiscussionsFeedPage() {
                           variant="outline"
                           size="sm"
                           onClick={() => {
-                            const input = document.querySelector(`input[data-post-id="${post.id}"]`) as HTMLInputElement;
+                            const input = document.querySelector(
+                              `input[data-post-id="${post.id}"]`
+                            ) as HTMLInputElement;
                             if (input?.value?.trim()) {
                               createCommentMutation.mutate({
                                 postId: post.id,
-                                content: input.value.trim()
+                                content: input.value.trim(),
                               });
-                              input.value = '';
+                              input.value = "";
                             }
                           }}
                         >
@@ -269,6 +295,35 @@ export default function DiscussionsFeedPage() {
                         <span>{post.reactions.dislikes}</span>
                       </Button>
                     </div>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="sm">
+                          <Flag className="h-4 w-4 mr-1" />
+                          Report
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Report Discussion</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Are you sure you want to report this discussion? This will notify moderators to review the content.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => {
+                              reportMutation.mutate({
+                                discussionId: post.id,
+                                reason: "Inappropriate content",
+                              });
+                            }}
+                          >
+                            Report
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </CardFooter>
                 </Card>
               ))}
