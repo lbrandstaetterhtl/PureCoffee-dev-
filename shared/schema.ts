@@ -48,6 +48,7 @@ export const reports = pgTable("reports", {
   reporterId: integer("reporter_id").notNull(),
   postId: integer("post_id"),
   commentId: integer("comment_id"),
+  discussionId: integer("discussion_id"),
   status: text("status").notNull().default("pending"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
@@ -110,6 +111,7 @@ export const insertReportSchema = createInsertSchema(reports).pick({
   reason: true,
   postId: true,
   commentId: true,
+  discussionId: true,
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({

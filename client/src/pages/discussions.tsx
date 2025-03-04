@@ -110,9 +110,9 @@ export default function DiscussionsPage() {
     },
   });
 
-  const reportMutation = useMutation<Report, Error, { postId: number; reason: string }>({
-    mutationFn: async ({ postId, reason }) => {
-      const res = await apiRequest("POST", "/api/reports", { postId, reason });
+  const reportMutation = useMutation<Report, Error, { discussionId: number; reason: string }>({
+    mutationFn: async ({ discussionId, reason }) => {
+      const res = await apiRequest("POST", "/api/reports", { discussionId, reason });
       return res.json();
     },
     onSuccess: () => {
@@ -303,7 +303,7 @@ export default function DiscussionsPage() {
                       size="sm"
                       onClick={() =>
                         reportMutation.mutate({
-                          postId: post.id,
+                          discussionId: post.id,
                           reason: "Inappropriate content",
                         })
                       }

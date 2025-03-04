@@ -296,6 +296,14 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
         } else if (report.commentId) {
           // Delete the reported comment
           await storage.deleteComment(report.commentId);
+        } else if (report.discussionId) {
+          // Delete the reported discussion (which is a type of post)
+          const discussion = await storage.getPost(report.discussionId);
+          if (discussion && discussion.category === 'discussion') {
+            await storage.deleteComments(report.discussionId);
+            await storage.deletePostReactions(report.discussionId);
+            await storage.deletePost(report.discussionId);
+          }
         }
       }
 
@@ -559,21 +567,20 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
       const reports = await storage.getReports();
       const enrichedReports = await Promise.all(reports.map(async (report) => {
         const reporter = await storage.getUser(report.reporterId);
-        const reportedPost = report.postId ? await storage.getPost(report.postId) : null;
-        const reportedComment = report.commentId ? await storage.getComment(report.commentId) : null;
+        const reportedContent = report.postId ? await storage.getPost(report.postId) :
+                              report.commentId ? await storage.getComment(report.commentId) :
+                              report.discussionId ? await storage.getPost(report.discussionId) : null;
 
         return {
           ...report,
           reporter: {
             username: reporter?.username || 'Unknown',
           },
-          content: reportedPost ? {
-            type: 'post',
-            title: reportedPost.title,
-            content: reportedPost.content
-          } : reportedComment ? {
-            type: 'comment',
-            content: reportedComment.content
+          content: reportedContent ? {
+            type: report.postId ? 'post' :
+                  report.discussionId ? 'discussion' : 'comment',
+            title: (reportedContent as any).title || null,
+            content: (reportedContent as any).content
           } : null
         };
       }));
