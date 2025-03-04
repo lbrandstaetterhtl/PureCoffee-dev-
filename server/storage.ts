@@ -119,25 +119,38 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateUserProfile(id: number, profile: Partial<{ username: string; email: string; profilePictureUrl: string; role: string; emailVerified: boolean }>): Promise<User> {
-    const updateData: Record<string, any> = {};
-    if (profile.username) updateData.username = profile.username;
-    if (profile.email) updateData.email = profile.email;
-    if (profile.profilePictureUrl) updateData.profile_picture_url = profile.profilePictureUrl;
-    if (typeof profile.role !== 'undefined') updateData.role = profile.role;
-    if (typeof profile.emailVerified !== 'undefined') updateData.email_verified = profile.emailVerified;
+    try {
+      const updateData: Record<string, any> = {};
 
-    if (Object.keys(updateData).length === 0) {
-      return this.getUser(id) as Promise<User>;
+      if (profile.username) updateData.username = profile.username;
+      if (profile.email) updateData.email = profile.email;
+      if (profile.profilePictureUrl) updateData.profile_picture_url = profile.profilePictureUrl;
+
+      // Handle role and is_admin together
+      if (typeof profile.role !== 'undefined') {
+        updateData.role = profile.role;
+        updateData.is_admin = profile.role === 'admin' || profile.role === 'owner';
+      }
+
+      // Map emailVerified to email_verified
+      if (typeof profile.emailVerified !== 'undefined') {
+        updateData.email_verified = profile.emailVerified;
+      }
+
+      console.log('Updating user profile with data:', updateData);
+
+      const [user] = await db
+        .update(users)
+        .set(updateData)
+        .where(eq(users.id, id))
+        .returning();
+
+      console.log('Updated user:', user);
+      return user;
+    } catch (error) {
+      console.error('Error updating user profile:', error);
+      throw error;
     }
-
-    console.log('Updating user profile with data:', updateData); // Debug log
-    const [user] = await db
-      .update(users)
-      .set(updateData)
-      .where(eq(users.id, id))
-      .returning();
-    console.log('Updated user:', user); // Debug log
-    return user;
   }
 
   async updateUserPassword(id: number, password: string): Promise<User> {
