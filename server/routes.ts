@@ -37,7 +37,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   };
 
   // Serve uploaded files
-  app.use("/uploads", express.static("uploads"));
+  app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
   // Posts
   app.get("/api/posts", async (req, res) => {
