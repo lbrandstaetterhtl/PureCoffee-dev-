@@ -13,8 +13,8 @@ export function Navbar() {
     { href: "/feed/discussions", icon: MessageSquare, label: "Discussions Feed" },
     { href: "/chat", icon: MessageCircle, label: "Messages" },
     { href: "/profile", icon: UserCircle, label: "Profile" },
-    // Only show admin link for pure-coffee user
-    ...(user?.username === 'pure-coffee' ? [
+    // Show admin link for users with admin privileges
+    ...(user?.isAdmin || user?.role === 'admin' || user?.role === 'owner' ? [
       { href: "/admin", icon: Shield, label: "Admin" }
     ] : []),
   ];
