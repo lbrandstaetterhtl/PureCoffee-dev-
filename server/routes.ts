@@ -331,27 +331,44 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
         return res.status(404).send("Report not found");
       }
 
+      console.log('Processing report:', report); // Debug log
+
       // If report is resolved, take action based on the reported content
       if (status === "resolved") {
-        // First update all reports for this content
-        if (report.discussionId) {
-          await storage.updateAllReportsForContent(null, null, report.discussionId, "resolved");
-          // Then delete associated content
-          await storage.deleteComments(report.discussionId);
-          await storage.deletePostReactions(report.discussionId);
-          // Finally delete the discussion
-          await storage.deletePost(report.discussionId);
-        } else if (report.postId) {
-          await storage.updateAllReportsForContent(report.postId, null, null, "resolved");
-          await storage.deleteComments(report.postId);
-          await storage.deletePostReactions(report.postId);
-          await storage.deletePost(report.postId);
-        } else if (report.commentId) {
-          await storage.updateAllReportsForContent(null, report.commentId, null, "resolved");
-          await storage.deleteComment(report.commentId);
-        }
+        try {
+          // First update this report's status
+          await storage.updateReportStatus(reportId, status);
+          console.log('Updated report status to resolved'); // Debug log
 
-        res.json(report);
+          if (report.discussionId) {
+            console.log('Handling discussion deletion:', report.discussionId); // Debug log
+
+            // Delete all comments
+            await storage.deleteComments(report.discussionId);
+            console.log('Deleted discussion comments'); // Debug log
+
+            // Delete reactions
+            await storage.deletePostReactions(report.discussionId);
+            console.log('Deleted discussion reactions'); // Debug log
+
+            // Delete the discussion post itself
+            await storage.deletePost(report.discussionId);
+            console.log('Deleted discussion post'); // Debug log
+          } else if (report.postId) {
+            console.log('Handling post deletion:', report.postId); // Debug log
+            await storage.deleteComments(report.postId);
+            await storage.deletePostReactions(report.postId);
+            await storage.deletePost(report.postId);
+          } else if (report.commentId) {
+            console.log('Handling comment deletion:', report.commentId); // Debug log
+            await storage.deleteComment(report.commentId);
+          }
+
+          res.json({ ...report, status });
+        } catch (deleteError) {
+          console.error('Error during content deletion:', deleteError);
+          res.status(500).send(`Failed to delete reported content: ${deleteError.message}`);
+        }
       } else {
         // For rejected reports, just update the status
         const updatedReport = await storage.updateReportStatus(reportId, status);

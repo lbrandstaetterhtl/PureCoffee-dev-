@@ -447,30 +447,75 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteComments(postId: number): Promise<void> {
-    const commentsToDelete = await db.select().from(comments).where(eq(comments.postId, postId));
-    for (const comment of commentsToDelete) {
-      await this.updateAllReportsForContent(null, comment.id, null, "resolved");
+    console.log('Deleting comments for post:', postId);
+    try {
+      // First get all comments
+      const commentsToDelete = await db.select().from(comments).where(eq(comments.postId, postId));
+
+      // Delete reports for each comment
+      for (const comment of commentsToDelete) {
+        await this.deleteReportsForComment(comment.id); //using new function
+      }
+
+      // Then delete all comments
+      await db.delete(comments).where(eq(comments.postId, postId));
+      console.log('Successfully deleted comments for post:', postId);
+    } catch (error) {
+      console.error('Error deleting comments:', error);
+      throw error;
     }
-    await db.delete(comments).where(eq(comments.postId, postId));
   }
 
   async deletePostReactions(postId: number): Promise<void> {
-    await db.delete(postLikes).where(eq(postLikes.postId, postId));
+    console.log('Deleting reactions for post:', postId);
+    try {
+      await db.delete(postLikes).where(eq(postLikes.postId, postId));
+      console.log('Successfully deleted reactions for post:', postId);
+    } catch (error) {
+      console.error('Error deleting reactions:', error);
+      throw error;
+    }
   }
 
   async deleteReports(postId: number): Promise<void> {
-    await db.delete(reports).where(eq(reports.postId, postId));
+    console.log('Deleting reports for post:', postId);
+    try {
+      await db.delete(reports).where(
+        or(
+          eq(reports.postId, postId),
+          eq(reports.discussionId, postId)
+        )
+      );
+      console.log('Successfully deleted reports for post:', postId);
+    } catch (error) {
+      console.error('Error deleting reports:', error);
+      throw error;
+    }
   }
 
   async deletePost(postId: number): Promise<void> {
-    // Update all reports first
-    await this.updateAllReportsForContent(postId, null, null, "resolved");
-    // Then delete associated data
-    await this.deleteComments(postId);
-    await this.deletePostReactions(postId);
-    await this.deleteReports(postId);
-    // Then delete the post
-    await db.delete(posts).where(eq(posts.id, postId));
+    console.log('Starting post deletion:', postId); // Debug log
+
+    try {
+      // First delete all comments (which will also handle comment reports)
+      await this.deleteComments(postId);
+      console.log('Deleted comments for post:', postId);
+
+      // Then delete reactions
+      await this.deletePostReactions(postId);
+      console.log('Deleted reactions for post:', postId);
+
+      // Delete all reports for this post
+      await this.deleteReports(postId);
+      console.log('Deleted reports for post:', postId);
+
+      // Finally delete the post itself
+      await db.delete(posts).where(eq(posts.id, postId));
+      console.log('Successfully deleted post:', postId);
+    } catch (error) {
+      console.error('Error during post deletion:', error);
+      throw error; // Re-throw to handle in the route
+    }
   }
   async getUsers(): Promise<User[]> {
     return db.select().from(users).orderBy(desc(users.createdAt));
@@ -507,17 +552,27 @@ export class DatabaseStorage implements IStorage {
     // Finally delete the user
     await db.delete(users).where(eq(users.id, id));
   }
-  // Add new method to update all reports for a content
   async updateAllReportsForContent(postId: number | null, commentId: number | null, discussionId: number | null, status: string): Promise<void> {
-    await db.update(reports)
-      .set({ status })
-      .where(
-        or(
-          postId ? eq(reports.postId, postId) : undefined,
-          commentId ? eq(reports.commentId, commentId) : undefined,
-          discussionId ? eq(reports.discussionId, discussionId) : undefined,
-        ).filter(Boolean)
-      );
+    const conditions = [];
+    if (postId) conditions.push(eq(reports.postId, postId));
+    if (commentId) conditions.push(eq(reports.commentId, commentId));
+    if (discussionId) conditions.push(eq(reports.discussionId, discussionId));
+
+    if (conditions.length > 0) {
+      await db.update(reports)
+        .set({ status })
+        .where(or(...conditions));
+    }
+  }
+  async deleteReportsForComment(commentId: number):Promise<void>{
+    console.log('Deleting reports for comment:', commentId);
+    try {
+      await db.delete(reports).where(eq(reports.commentId, commentId));
+      console.log('Successfully deleted reports for comment:', commentId);
+    } catch (error) {
+      console.error('Error deleting reports for comment:', error);
+      throw error;
+    }
   }
 }
 
