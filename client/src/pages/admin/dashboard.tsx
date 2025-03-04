@@ -62,6 +62,9 @@ export default function AdminDashboard() {
   const updateReportMutation = useMutation({
     mutationFn: async ({ reportId, status }: { reportId: number; status: string }) => {
       const res = await apiRequest("PATCH", `/api/admin/reports/${reportId}`, { status });
+      if (!res.ok) {
+        throw new Error("Failed to update report status");
+      }
       return res.json();
     },
     onSuccess: () => {
@@ -71,12 +74,25 @@ export default function AdminDashboard() {
         description: "Report status updated successfully",
       });
     },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to update report status",
+        variant: "destructive",
+      });
+    },
   });
 
   const filteredUsers = users?.filter(user =>
     user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
     user.email.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const handleReportAction = (reportId: number, status: string) => {
+    if (window.confirm(`Are you sure you want to ${status === 'resolved' ? 'resolve' : 'reject'} this report? ${status === 'resolved' ? 'This will delete the reported content.' : ''}`)) {
+      updateReportMutation.mutate({ reportId, status });
+    }
+  };
 
   return (
     <>
@@ -184,7 +200,6 @@ export default function AdminDashboard() {
                                           });
                                         }
                                       }}
-                                      className={user.karma >= 0 ? "text-destructive hover:text-destructive" : ""}
                                     >
                                       {user.karma < 0 ? (
                                         <>
@@ -288,22 +303,16 @@ export default function AdminDashboard() {
                                 <Button
                                   size="sm"
                                   variant="ghost"
-                                  onClick={() => updateReportMutation.mutate({
-                                    reportId: report.id,
-                                    status: "resolved"
-                                  })}
-                                  disabled={report.status !== "pending"}
+                                  onClick={() => handleReportAction(report.id, "resolved")}
+                                  disabled={report.status !== "pending" || updateReportMutation.isPending}
                                 >
                                   <CheckCircle className="h-4 w-4" />
                                 </Button>
                                 <Button
                                   size="sm"
                                   variant="ghost"
-                                  onClick={() => updateReportMutation.mutate({
-                                    reportId: report.id,
-                                    status: "rejected"
-                                  })}
-                                  disabled={report.status !== "pending"}
+                                  onClick={() => handleReportAction(report.id, "rejected")}
+                                  disabled={report.status !== "pending" || updateReportMutation.isPending}
                                 >
                                   <XCircle className="h-4 w-4" />
                                 </Button>
