@@ -291,8 +291,8 @@ export default function AdminDashboard() {
                                             </>
                                           )}
                                         </Button>
-                                        {/* Only owner can grant admin role */}
-                                        {user.role === 'owner' && u.role === 'user' && (
+                                        {/* Allow both admins and owners to promote users to admin */}
+                                        {(user.role === 'owner' || user.role === 'admin') && u.role === 'user' && (
                                           <Button
                                             size="sm"
                                             variant="default"
