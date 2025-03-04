@@ -699,6 +699,7 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
         return res.status(404).send("User not found");
       }
 
+      // Debug logging
       console.log('Admin update request:', {
         userId,
         requestBody: req.body,
@@ -712,25 +713,32 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
         return res.status(403).send("Only the owner can modify admin users");
       }
 
-      // If this is a ban action
-      if (req.body.karma < 0) {
-        // Send ban notification to the user if they're connected
-        const userWs = connections.get(userId);
-        if (userWs && userWs.readyState === WebSocket.OPEN) {
-          userWs.send(JSON.stringify({
-            type: 'banned',
-            message: 'Your account has been banned by an administrator.'
-          }));
+      // If this is a ban action (karma update)
+      if (typeof req.body.karma === 'number') {
+        if (req.body.karma < 0) {
+          // Ban process - send notification and delete user
+          const userWs = connections.get(userId);
+          if (userWs && userWs.readyState === WebSocket.OPEN) {
+            userWs.send(JSON.stringify({
+              type: 'banned',
+              message: 'Your account has been banned by an administrator.'
+            }));
+          }
+          await storage.deleteUser(userId);
+          res.json({ message: "User banned and deleted successfully" });
+        } else {
+          // Unban process - just update karma
+          const updatedUser = await storage.updateUserKarma(userId, req.body.karma);
+          res.json(updatedUser);
         }
-
-        // Delete the user's data
-        await storage.deleteUser(userId);
-        res.json({ message: "User banned and deleted successfully" });
-      } else {
-        // For non-ban updates
+      } else if (req.body.data) {
+        // Handle other profile updates (role, emailVerified, etc.)
+        console.log('Updating user profile with data:', req.body.data);
         const updatedUser = await storage.updateUserProfile(userId, req.body.data);
         console.log('Updated user:', updatedUser);
         res.json(updatedUser);
+      } else {
+        res.status(400).send("Invalid update data");
       }
     } catch (error) {
       console.error('Error updating user:', error);

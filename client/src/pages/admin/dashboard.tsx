@@ -47,6 +47,7 @@ export default function AdminDashboard() {
 
   const updateUserMutation = useMutation({
     mutationFn: async ({ userId, data }: { userId: number; data: any }) => {
+      console.log('Sending update request:', { userId, data });
       const res = await apiRequest("PATCH", `/api/admin/users/${userId}`, data);
       if (!res.ok) {
         throw new Error("Failed to update user");
