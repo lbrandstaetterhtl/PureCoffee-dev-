@@ -5,61 +5,24 @@ import postgres from "postgres";
 import { users, posts, comments, reports, postLikes, verificationTokens } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import connectPg from "connect-pg-simple";
+import { log } from "./vite";
 
 const PostgresSessionStore = connectPg(session);
 
-export interface IStorage {
-  getUser(id: number): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  getUserByEmail(email: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
-  updateUserProfile(id: number, profile: Partial<{ username: string; email: string }>): Promise<User>;
-  updateUserPassword(id: number, password: string): Promise<User>;
-  updateUserKarma(id: number, karma: number): Promise<User>;
-
-  createPost(post: Omit<Post, "id" | "createdAt" | "karma">): Promise<Post>;
-  getPosts(category?: string): Promise<Post[]>;
-  getPost(id: number): Promise<Post | undefined>;
-  updatePostKarma(id: number, karma: number): Promise<Post>;
-
-  createComment(comment: Omit<Comment, "id" | "createdAt" | "karma">): Promise<Comment>;
-  getComments(postId: number): Promise<Comment[]>;
-  updateCommentKarma(id: number, karma: number): Promise<Comment>;
-
-  createReport(report: Omit<Report, "id" | "createdAt" | "status">): Promise<Report>;
-  getReports(): Promise<Report[]>;
-  updateReportStatus(id: number, status: string): Promise<Report>;
-
-  sessionStore: session.Store;
-  createVerificationToken(token: {
-    token: string;
-    userId: number;
-    expiresAt: Date;
-  }): Promise<void>;
-
-  getVerificationToken(token: string): Promise<{
-    token: string;
-    userId: number;
-    expiresAt: Date;
-  } | undefined>;
-
-  deleteVerificationToken(token: string): Promise<void>;
-
-  verifyUserEmail(userId: number): Promise<void>;
-  createPostLike(userId: number, postId: number, isLike: boolean): Promise<void>;
-  removePostReaction(userId: number, postId: number): Promise<void>;
-  getUserPostReaction(userId: number, postId: number): Promise<{ isLike: boolean } | null>;
-  getPostReactions(postId: number): Promise<{ likes: number; dislikes: number }>;
-}
-
-// Initialize postgres client with proper SSL configuration
+// Initialize postgres client with proper configuration
 const queryClient = postgres(process.env.DATABASE_URL!, {
   ssl: {
     rejectUnauthorized: false
   },
   max: 20,
-  idle_timeout: 30
+  idle_timeout: 30,
+  connect_timeout: 10,
+  connection: {
+    application_name: "coffee-social-app"
+  }
 });
+
+log("Database client initialized");
 
 const db = drizzle(queryClient);
 
@@ -76,6 +39,19 @@ export class DatabaseStorage implements IStorage {
       },
       createTableIfMissing: true,
     });
+
+    // Test database connection asynchronously
+    this.testConnection();
+  }
+
+  private async testConnection() {
+    try {
+      await db.select().from(users).limit(1);
+      log("Database connection test successful");
+    } catch (error) {
+      console.error("Database connection test failed:", error);
+      // Don't exit process, allow for retry
+    }
   }
 
   async getUser(id: number): Promise<User | undefined> {
