@@ -73,7 +73,7 @@ export default function AdminDashboard() {
     },
   });
 
-  const filteredUsers = users?.filter(user => 
+  const filteredUsers = users?.filter(user =>
     user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
     user.email.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -143,6 +143,11 @@ export default function AdminDashboard() {
                               <Badge variant={user.emailVerified ? "default" : "secondary"}>
                                 {user.emailVerified ? "Verified" : "Unverified"}
                               </Badge>
+                              {user.karma < 0 && (
+                                <Badge variant="destructive" className="ml-2">
+                                  Banned
+                                </Badge>
+                              )}
                             </TableCell>
                             <TableCell>
                               <Badge variant={user.isAdmin ? "destructive" : "default"}>
@@ -159,43 +164,67 @@ export default function AdminDashboard() {
                             </TableCell>
                             <TableCell>
                               <div className="flex items-center space-x-2">
-                                <Button
-                                  size="sm"
-                                  variant={user.emailVerified ? "ghost" : "default"}
-                                  onClick={() => updateUserMutation.mutate({
-                                    userId: user.id,
-                                    data: { emailVerified: !user.emailVerified }
-                                  })}
-                                  disabled={updateUserMutation.isPending}
-                                >
-                                  {user.emailVerified ? (
-                                    <Ban className="h-4 w-4 mr-1" />
-                                  ) : (
-                                    <Check className="h-4 w-4 mr-1" />
-                                  )}
-                                  {user.emailVerified ? "Unverify" : "Verify"}
-                                </Button>
                                 {!user.isAdmin && (
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="text-destructive hover:text-destructive"
-                                    onClick={() => {
-                                      if (window.confirm(`Are you sure you want to ${user.karma < 0 ? 'restore' : 'ban'} ${user.username}?`)) {
-                                        updateUserMutation.mutate({
+                                  <>
+                                    <Button
+                                      size="sm"
+                                      variant={user.karma < 0 ? "default" : "destructive"}
+                                      onClick={() => {
+                                        const action = user.karma < 0 ? 'restore' : 'ban';
+                                        const newKarma = user.karma < 0 ? 5 : -100;
+
+                                        if (window.confirm(
+                                          action === 'ban'
+                                            ? `Are you sure you want to ban ${user.username}? This will prevent them from accessing most features.`
+                                            : `Are you sure you want to restore ${user.username}'s account?`
+                                        )) {
+                                          updateUserMutation.mutate({
+                                            userId: user.id,
+                                            data: {
+                                              karma: newKarma,
+                                              emailVerified: action === 'restore' // Restore email verification on unban
+                                            }
+                                          });
+                                        }
+                                      }}
+                                      className={user.karma >= 0 ? "text-destructive hover:text-destructive" : ""}
+                                    >
+                                      {user.karma < 0 ? (
+                                        <>
+                                          <Check className="h-4 w-4 mr-1" />
+                                          Restore Account
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Ban className="h-4 w-4 mr-1" />
+                                          Ban User
+                                        </>
+                                      )}
+                                    </Button>
+                                    {user.karma >= 0 && (
+                                      <Button
+                                        size="sm"
+                                        variant={user.emailVerified ? "ghost" : "default"}
+                                        onClick={() => updateUserMutation.mutate({
                                           userId: user.id,
-                                          data: { karma: user.karma < 0 ? 5 : -100 }
-                                        });
-                                      }
-                                    }}
-                                  >
-                                    {user.karma < 0 ? (
-                                      <Check className="h-4 w-4 mr-1" />
-                                    ) : (
-                                      <AlertTriangle className="h-4 w-4 mr-1" />
+                                          data: { emailVerified: !user.emailVerified }
+                                        })}
+                                        disabled={updateUserMutation.isPending}
+                                      >
+                                        {user.emailVerified ? (
+                                          <>
+                                            <AlertTriangle className="h-4 w-4 mr-1" />
+                                            Unverify
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Check className="h-4 w-4 mr-1" />
+                                            Verify
+                                          </>
+                                        )}
+                                      </Button>
                                     )}
-                                    {user.karma < 0 ? "Restore" : "Ban"}
-                                  </Button>
+                                  </>
                                 )}
                               </div>
                             </TableCell>
@@ -239,7 +268,7 @@ export default function AdminDashboard() {
                               {report.content?.type === 'post' ? "Post" : "Comment"}
                             </TableCell>
                             <TableCell className="max-w-xs truncate">
-                              {report.content?.type === 'post' 
+                              {report.content?.type === 'post'
                                 ? report.content.title
                                 : report.content?.content}
                             </TableCell>
@@ -247,7 +276,7 @@ export default function AdminDashboard() {
                             <TableCell>
                               <Badge variant={
                                 report.status === "resolved" ? "default" :
-                                report.status === "rejected" ? "destructive" : "secondary"
+                                  report.status === "rejected" ? "destructive" : "secondary"
                               }>
                                 {report.status}
                               </Badge>

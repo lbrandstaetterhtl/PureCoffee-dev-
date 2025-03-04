@@ -7,7 +7,6 @@ import { promisify } from "util";
 import { storage } from "./storage";
 import { User as SelectUser } from "@shared/schema";
 import { updateProfileSchema, updatePasswordSchema } from '@shared/schema';
-import { verificationTokens } from "@shared/schema";
 import { sendVerificationEmail } from "./utils/email";
 
 declare global {
@@ -49,20 +48,9 @@ async function createVerificationToken(userId: number): Promise<string> {
   return token;
 }
 
-export function setupAuth(app: Express) {
-  const sessionSettings: session.SessionOptions = {
-    secret: process.env.SESSION_SECRET || 'your-secret-key',
-    resave: false,
-    saveUninitialized: false,
-    store: storage.sessionStore,
-    cookie: {
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: 1000 * 60 * 60 * 24 // 24 hours
-    }
-  };
-
+export function setupAuth(app: Express, sessionParser: session.RequestHandler) {
   app.set("trust proxy", 1);
-  app.use(session(sessionSettings));
+  app.use(sessionParser);
   app.use(passport.initialize());
   app.use(passport.session());
 
@@ -71,16 +59,20 @@ export function setupAuth(app: Express) {
       try {
         const user = await storage.getUserByUsername(username);
         if (!user) {
+          console.log("Login failed: User not found:", username);
           return done(null, false, { message: "Invalid username or password" });
         }
 
         const isValid = await comparePasswords(password, user.password);
         if (!isValid) {
+          console.log("Login failed: Invalid password for user:", username);
           return done(null, false, { message: "Invalid username or password" });
         }
 
+        console.log("Login successful for user:", username);
         return done(null, user);
       } catch (err) {
+        console.error("Login error:", err);
         return done(err);
       }
     }),
@@ -94,10 +86,12 @@ export function setupAuth(app: Express) {
     try {
       const user = await storage.getUser(id);
       if (!user) {
+        console.log("Session invalid: User not found:", id);
         return done(null, false);
       }
       done(null, user);
     } catch (err) {
+      console.error("Session error:", err);
       done(err);
     }
   });
@@ -121,8 +115,8 @@ export function setupAuth(app: Express) {
         emailVerified: false,
       });
 
-      // Try to send verification email only if SENDGRID_API_KEY is properly configured
-      if (process.env.SENDGRID_API_KEY?.startsWith('SG.')) {
+      // Only attempt email verification if SendGrid is properly configured
+      if (process.env.SENDGRID_API_KEY && process.env.SENDGRID_API_KEY.startsWith('SG.')) {
         try {
           const verificationToken = await createVerificationToken(user.id);
           await sendVerificationEmail(user.email, user.username, verificationToken);
@@ -130,6 +124,8 @@ export function setupAuth(app: Express) {
           console.error('Error sending verification email:', emailErr);
           // Continue with registration even if email fails
         }
+      } else {
+        console.log('SendGrid API key not properly configured - skipping verification email');
       }
 
       // Log the user in
@@ -143,33 +139,6 @@ export function setupAuth(app: Express) {
     }
   });
 
-  app.get("/api/verify-email", async (req, res) => {
-    try {
-      const { token } = req.query;
-      if (!token || typeof token !== 'string') {
-        return res.status(400).send("Invalid verification token");
-      }
-
-      const verificationToken = await storage.getVerificationToken(token);
-      if (!verificationToken) {
-        return res.status(400).send("Invalid or expired verification token");
-      }
-
-      if (new Date() > verificationToken.expiresAt) {
-        await storage.deleteVerificationToken(token);
-        return res.status(400).send("Verification token has expired");
-      }
-
-      await storage.verifyUserEmail(verificationToken.userId);
-      await storage.deleteVerificationToken(token);
-
-      res.redirect("/auth?verified=true");
-    } catch (err) {
-      console.error('Verification error:', err);
-      res.status(500).send("Email verification failed");
-    }
-  });
-
   app.post("/api/login", (req, res, next) => {
     passport.authenticate("local", (err, user, info) => {
       if (err) return next(err);
@@ -177,23 +146,30 @@ export function setupAuth(app: Express) {
 
       req.login(user, (err) => {
         if (err) return next(err);
+        console.log("User logged in successfully:", user.username);
         res.json(user);
       });
     })(req, res, next);
   });
 
   app.post("/api/logout", (req, res, next) => {
+    const username = req.user?.username;
     req.logout((err) => {
       if (err) return next(err);
       req.session.destroy((err) => {
         if (err) return next(err);
+        console.log("User logged out successfully:", username);
         res.sendStatus(200);
       });
     });
   });
 
   app.get("/api/user", (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (!req.isAuthenticated()) {
+      console.log("Unauthenticated access attempt to /api/user");
+      return res.sendStatus(401);
+    }
+    console.log("User data requested for:", req.user?.username);
     res.json(req.user);
   });
 

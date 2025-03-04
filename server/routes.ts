@@ -7,17 +7,8 @@ import path from "path";
 import express from "express";
 import { WebSocketServer, WebSocket } from 'ws';
 import { insertDiscussionPostSchema, insertMediaPostSchema, insertCommentSchema, insertReportSchema, messageSchema } from "@shared/schema";
-import type { Knex } from 'knex'; // Added type import for Knex.js
-
-// Assuming 'users' table schema is defined elsewhere and available.
-// Replace with your actual table definition if different.
-interface User {
-  id: number;
-  username: string;
-  email: string;
-  createdAt: Date;
-  // ... other fields
-}
+import type { Knex } from 'knex';
+import session from 'express-session';
 
 // WebSocket connections store
 const connections = new Map<number, WebSocket>();
@@ -44,12 +35,59 @@ const upload = multer({
 });
 
 export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Promise<Server> {
-  setupAuth(app);
+  // Create HTTP server
+  const httpServer = createServer(app);
+
+  // Setup session parser to be used by both Express and WebSocket
+  const sessionParser = session({
+    secret: process.env.SESSION_SECRET || 'your-secret-key',
+    resave: false,
+    saveUninitialized: false,
+    store: storage.sessionStore,
+    cookie: {
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 1000 * 60 * 60 * 24 // 24 hours
+    }
+  });
+
+  // Setup auth with session parser
+  setupAuth(app, sessionParser);
 
   const isAuthenticated = (req: any, res: any, next: any) => {
     if (req.isAuthenticated()) return next();
     res.status(401).send("Unauthorized");
   };
+
+  // Setup WebSocket server
+  const wss = new WebSocketServer({ 
+    server: httpServer,
+    path: '/ws',
+    verifyClient: (info, done) => {
+      console.log("WebSocket connection attempt");
+      sessionParser(info.req, {} as any, () => {
+        const session = (info.req as any).session;
+        const userId = session?.passport?.user;
+        if (userId) {
+          console.log("WebSocket authenticated for user:", userId);
+          done(true);
+        } else {
+          console.log("WebSocket authentication failed");
+          done(false, 401, "Unauthorized");
+        }
+      });
+    }
+  });
+
+  wss.on('connection', (ws, req: any) => {
+    const userId = req.session.passport.user;
+    console.log("WebSocket connected for user:", userId);
+    connections.set(userId, ws);
+
+    ws.on('close', () => {
+      console.log("WebSocket disconnected for user:", userId);
+      connections.delete(userId);
+    });
+  });
 
   // Serve uploaded files
   app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
@@ -519,6 +557,7 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
     }
   });
 
+  // Add new admin route for banning users
   app.patch("/api/admin/users/:id", isAdmin, async (req, res) => {
     try {
       const userId = parseInt(req.params.id);
@@ -528,7 +567,19 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
         return res.status(404).send("User not found");
       }
 
-      const updatedUser = await storage.updateUserProfile(userId, req.body);
+      // Don't allow modifying admin users
+      if (user.username === 'pure-coffee') {
+        return res.status(403).send("Cannot modify admin user");
+      }
+
+      const updatedUser = await storage.updateUserProfile(userId, {
+        ...req.body,
+        // If karma is being set to negative, this is a ban action
+        ...(req.body.karma < 0 ? {
+          emailVerified: false // Automatically unverify banned users
+        } : {})
+      });
+
       res.json(updatedUser);
     } catch (error) {
       console.error('Error updating user:', error);
@@ -567,22 +618,6 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
     } catch (error) {
       console.error('Error updating report:', error);
       res.status(500).send("Failed to update report status");
-    }
-  });
-
-  const httpServer = createServer(app);
-
-  // Set up WebSocket server
-  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
-
-  wss.on('connection', (ws, req) => {
-    const userId = (req as any).user?.id;
-    if (userId) {
-      connections.set(userId, ws);
-
-      ws.on('close', () => {
-        connections.delete(userId);
-      });
     }
   });
 

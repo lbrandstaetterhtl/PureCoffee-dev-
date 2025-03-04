@@ -1,4 +1,4 @@
-import { User, Post, Comment, Report, InsertUser, InsertDiscussionPost, InsertMediaPost, Notification, Message, followers, notifications, messages } from "@shared/schema";
+import { User, Post, Comment, Report, InsertUser, InsertDiscussionPost, InsertMediaPost, Notification, Message, followers, notifications, messages, verificationTokens } from "@shared/schema";
 import session from "express-session";
 import { db } from "./db";
 import { eq, and, or, desc, asc, sql } from "drizzle-orm";
@@ -31,7 +31,7 @@ export interface IStorage {
   createReport(report: Omit<Report, "id" | "createdAt" | "status">): Promise<Report>;
   getReports(): Promise<Report[]>;
   updateReportStatus(id: number, status: string): Promise<Report>;
-  
+
   sessionStore: session.Store;
   createVerificationToken(token: {
     token: string;
@@ -360,7 +360,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getNotifications(userId: number): Promise<Notification[]> {
-    const notifications = await db
+    const result = await db
       .select({
         id: notifications.id,
         userId: notifications.userId,
@@ -377,7 +377,7 @@ export class DatabaseStorage implements IStorage {
       .where(eq(notifications.userId, userId))
       .orderBy(desc(notifications.createdAt));
 
-    return notifications;
+    return result;
   }
 
   async markNotificationAsRead(notificationId: number): Promise<void> {
