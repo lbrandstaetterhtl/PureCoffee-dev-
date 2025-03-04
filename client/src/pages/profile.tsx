@@ -23,7 +23,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Loader2, UserPlus, UserMinus } from "lucide-react";
+import { Loader2, UserPlus, UserMinus, Star } from "lucide-react";
 
 export default function ProfilePage() {
   const { user } = useAuth();
@@ -143,9 +143,13 @@ export default function ProfilePage() {
             <UserAvatar user={{ username: user?.username || '' }} size="lg" />
             <div>
               <h1 className="text-4xl font-bold">Profile Settings</h1>
-              <div className="flex gap-4 mt-2 text-muted-foreground">
-                <span>{followers?.length || 0} followers</span>
-                <span>{following?.length || 0} following</span>
+              <div className="flex gap-4 mt-2">
+                <span className="text-muted-foreground">{followers?.length || 0} followers</span>
+                <span className="text-muted-foreground">{following?.length || 0} following</span>
+                <div className="flex items-center text-amber-500">
+                  <Star className="h-4 w-4 mr-1 fill-current" />
+                  <span>{user?.karma || 0} karma</span>
+                </div>
               </div>
             </div>
           </div>
