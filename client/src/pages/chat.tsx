@@ -19,7 +19,6 @@ type Message = {
   senderId: number;
   receiverId: number;
   createdAt: string;
-  read: boolean;
   sender: {
     username: string;
   };
@@ -66,7 +65,6 @@ export default function ChatPage() {
     (followedUser) => followers?.some((follower) => follower.id === followedUser.id)
   );
 
-  // Messages
   const { data: messages, isLoading: messagesLoading } = useQuery<Message[]>({
     queryKey: ["/api/messages", selectedUserId],
     queryFn: async () => {
@@ -76,11 +74,6 @@ export default function ChatPage() {
       return res.json();
     },
     enabled: !!selectedUserId,
-    onSuccess: () => {
-      // Invalidate notifications when messages are loaded
-      queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/messages/unread/count"] });
-    },
   });
 
   const sendMessageMutation = useMutation({
@@ -120,59 +113,42 @@ export default function ChatPage() {
   // Setup WebSocket connection
   useEffect(() => {
     const connectWebSocket = () => {
-      try {
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const host = window.location.host.split('?')[0]; // Remove any query parameters
-        const wsUrl = `${protocol}//${encodeURIComponent(host)}/ws`;
-        const ws = new WebSocket(wsUrl);
-        wsRef.current = ws;
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+      wsRef.current = ws;
 
-        ws.onopen = () => {
-          console.log('WebSocket connected');
-        };
+      ws.onopen = () => {
+        console.log('WebSocket connected');
+      };
 
-        ws.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data);
-            if (data.type === 'new_message') {
-              // Invalidate queries to refresh messages
-              queryClient.invalidateQueries({ queryKey: ["/api/messages", selectedUserId] });
-              queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
-              queryClient.invalidateQueries({ queryKey: ["/api/messages/unread/count"] });
-            }
-          } catch (error) {
-            console.error('Error parsing WebSocket message:', error);
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === 'new_message') {
+          // Invalidate queries to refresh messages
+          queryClient.invalidateQueries({ queryKey: ["/api/messages", selectedUserId] });
+        }
+      };
+
+      ws.onclose = () => {
+        console.log('WebSocket disconnected, attempting to reconnect...');
+        wsRef.current = null;
+
+        // Clear any existing reconnection timeout
+        if (reconnectTimeoutRef.current) {
+          clearTimeout(reconnectTimeoutRef.current);
+        }
+
+        // Attempt to reconnect after a delay
+        reconnectTimeoutRef.current = setTimeout(() => {
+          if (!wsRef.current) {
+            connectWebSocket();
           }
-        };
+        }, 3000);
+      };
 
-        ws.onclose = () => {
-          console.log('WebSocket disconnected, attempting to reconnect...');
-          wsRef.current = null;
-
-          // Clear any existing reconnection timeout
-          if (reconnectTimeoutRef.current) {
-            clearTimeout(reconnectTimeoutRef.current);
-          }
-
-          // Attempt to reconnect after a delay
-          reconnectTimeoutRef.current = setTimeout(() => {
-            if (!wsRef.current) {
-              connectWebSocket();
-            }
-          }, 3000);
-        };
-
-        ws.onerror = (error) => {
-          console.error('WebSocket error:', error);
-          if (wsRef.current === ws) {
-            ws.close();
-          }
-        };
-      } catch (error) {
-        console.error('Error creating WebSocket connection:', error);
-        // Attempt to reconnect after error
-        setTimeout(connectWebSocket, 3000);
-      }
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+      };
     };
 
     connectWebSocket();
@@ -186,7 +162,7 @@ export default function ChatPage() {
         wsRef.current = null;
       }
     };
-  }, [selectedUserId, queryClient]);
+  }, []);
 
   // Clear message notifications when entering chat page
   useEffect(() => {
@@ -247,7 +223,7 @@ export default function ChatPage() {
                     <div className="flex justify-center">
                       <Loader2 className="h-6 w-6 animate-spin" />
                     </div>
-                  ) : messages && messages.length > 0 ? (
+                  ) : messages?.length ? (
                     messages.map((message) => (
                       <div
                         key={message.id}

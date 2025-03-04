@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Bell, MessageCircle } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Notification, Message } from "@shared/schema";
-import { useLocation, Link } from "wouter";
+import { useLocation } from "wouter";
 
 type NotificationWithUser = Notification & {
   fromUser: {
@@ -22,14 +22,7 @@ type NotificationWithUser = Notification & {
   };
 };
 
-// Update the MessageWithUser type
-type MessageWithUser = {
-  id: number;
-  content: string;
-  senderId: number;
-  receiverId: number;
-  createdAt: string;
-  read: boolean;
+type MessageWithUser = Message & {
   sender: {
     username: string;
   };
@@ -89,13 +82,10 @@ export function NotificationsDialog() {
           )}
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]" aria-describedby="notification-description">
+      <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Notifications</DialogTitle>
         </DialogHeader>
-        <div id="notification-description" className="sr-only">
-          View and manage your notifications and messages
-        </div>
         <Tabs defaultValue="notifications" className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="notifications">Notifications</TabsTrigger>
@@ -133,21 +123,10 @@ export function NotificationsDialog() {
             ))}
           </TabsContent>
           <TabsContent value="messages" className="mt-4">
-            <Link href="/chat" className="block w-full">
-              <Button variant="outline" className="w-full">
-                <MessageCircle className="mr-2 h-4 w-4" />
-                Open Chat
-              </Button>
-            </Link>
-            {unreadCount?.count ? (
-              <p className="text-sm text-center mt-2 text-muted-foreground">
-                You have {unreadCount.count} unread message{unreadCount.count !== 1 ? 's' : ''}
-              </p>
-            ) : (
-              <p className="text-sm text-center mt-2 text-muted-foreground">
-                No unread messages
-              </p>
-            )}
+            {/* Messages tab content will be implemented separately */}
+            <p className="text-center text-muted-foreground">
+              Messages feature coming soon
+            </p>
           </TabsContent>
         </Tabs>
       </DialogContent>

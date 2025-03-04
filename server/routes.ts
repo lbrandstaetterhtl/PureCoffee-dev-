@@ -49,32 +49,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Handle WebSocket upgrade
   httpServer.on('upgrade', function (request, socket, head) {
-    try {
-      const pathname = new URL(request.url!, `http://${request.headers.host}`).pathname;
+    const pathname = new URL(request.url!, `http://${request.headers.host}`).pathname;
 
-      if (pathname === '/ws') {
-        sessionParser(request as any, {} as any, () => {
-          try {
-            if (!(request as any).session?.passport?.user) {
-              socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-              socket.destroy();
-              return;
-            }
+    if (pathname === '/ws') {
+      sessionParser(request as any, {} as any, () => {
+        if (!(request as any).session?.passport?.user) {
+          socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+          socket.destroy();
+          return;
+        }
 
-            wss.handleUpgrade(request, socket, head, function (ws) {
-              wss.emit('connection', ws, request);
-            });
-          } catch (error) {
-            console.error('Error in session parsing:', error);
-            socket.destroy();
-          }
+        wss.handleUpgrade(request, socket, head, function (ws) {
+          wss.emit('connection', ws, request);
         });
-      } else {
-        socket.write('HTTP/1.1 404 Not Found\r\n\r\n');
-        socket.destroy();
-      }
-    } catch (error) {
-      console.error('Error in WebSocket upgrade:', error);
+      });
+    } else {
       socket.destroy();
     }
   });
@@ -83,34 +72,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const clients = new Map<number, WebSocket>();
 
   wss.on('connection', (ws, request: any) => {
-    try {
-      const userId = request.session.passport.user;
-      clients.set(userId, ws);
+    const userId = request.session.passport.user;
+    clients.set(userId, ws);
 
-      // Send initial connection success message
-      ws.send(JSON.stringify({ type: 'connected' }));
+    // Send initial connection success message
+    ws.send(JSON.stringify({ type: 'connected' }));
 
-      ws.on('close', () => {
-        clients.delete(userId);
-      });
+    ws.on('close', () => {
+      clients.delete(userId);
+    });
 
-      ws.on('error', (error) => {
-        console.error('WebSocket error:', error);
-        clients.delete(userId);
-        try {
-          ws.close();
-        } catch (e) {
-          console.error('Error closing WebSocket:', e);
-        }
-      });
-    } catch (error) {
-      console.error('Error in WebSocket connection:', error);
-      try {
-        ws.close();
-      } catch (e) {
-        console.error('Error closing WebSocket:', e);
-      }
-    }
+    ws.on('error', (error) => {
+      console.error('WebSocket error:', error);
+      clients.delete(userId);
+    });
   });
 
   // Serve uploaded files
@@ -488,29 +463,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/messages/:id/read", isAuthenticated, async (req, res) => {
-    try {
-      const messageId = parseInt(req.params.id);
-      await storage.markMessageAsRead(messageId);
-      res.sendStatus(200);
-    } catch (error) {
-      console.error('Error marking message as read:', error);
-      res.status(500).send("Failed to mark message as read");
-    }
-  });
-
   app.get("/api/messages/:userId", isAuthenticated, async (req, res) => {
     try {
       const otherUserId = parseInt(req.params.userId);
       const messages = await storage.getMessages(req.user!.id, otherUserId);
-
-      // Mark all received messages as read when fetched
-      for (const message of messages) {
-        if (message.receiverId === req.user!.id && !message.read) {
-          await storage.markMessageAsRead(message.id);
-        }
-      }
-
       res.json(messages);
     } catch (error) {
       console.error('Error getting messages:', error);

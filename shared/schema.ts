@@ -162,12 +162,5 @@ export type UpdatePassword = z.infer<typeof updatePasswordSchema>;
 export type PostLike = typeof postLikes.$inferSelect;
 export type Follower = typeof followers.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;
-export type Message = typeof messages.$inferSelect & {
-  sender: {
-    username: string;
-  };
-  receiver: {
-    username: string;
-  };
-};
+export type Message = typeof messages.$inferSelect;
 export type InsertMessage = z.infer<typeof messageSchema>;
