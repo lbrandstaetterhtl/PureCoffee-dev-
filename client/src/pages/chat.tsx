@@ -9,7 +9,7 @@ import { format } from "date-fns";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
-import { Loader2, Info } from "lucide-react";
+import { Loader2, Info, Menu } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 type Message = {
@@ -36,6 +36,7 @@ export default function ChatPage() {
   const { toast } = useToast();
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [messageInput, setMessageInput] = useState("");
+  const [showUserList, setShowUserList] = useState(true); // For mobile toggle
 
   // Fetch both followers and following
   const { data: following } = useQuery<User[]>({
@@ -111,51 +112,68 @@ export default function ChatPage() {
       <Navbar />
       <main className="container mx-auto px-4 pt-24">
         <div className="max-w-4xl mx-auto">
-          <h1 className="text-4xl font-bold mb-8">Messages</h1>
-          <div className="grid grid-cols-4 gap-6">
-            {/* Users List */}
-            <Card className="col-span-1">
+          {/* Mobile Header */}
+          <div className="flex items-center justify-between mb-4 lg:mb-8">
+            <h1 className="text-2xl lg:text-4xl font-bold">Messages</h1>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="lg:hidden"
+              onClick={() => setShowUserList(!showUserList)}
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 lg:gap-6">
+            {/* Users List - Collapsible on mobile */}
+            <Card className={`lg:block ${showUserList ? 'block' : 'hidden'}`}>
               <CardHeader>
-                <CardTitle>Mutual Followers</CardTitle>
+                <CardTitle className="text-lg">Mutual Followers</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="p-2">
                 {mutualFollowers?.length === 0 && (
                   <Alert>
                     <Info className="h-4 w-4" />
-                    <AlertDescription>
+                    <AlertDescription className="text-sm">
                       You can only chat with users who follow you back.
                     </AlertDescription>
                   </Alert>
                 )}
-                {mutualFollowers?.map((followedUser) => (
-                  <div
-                    key={followedUser.id}
-                    className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer hover:bg-muted ${
-                      selectedUserId === followedUser.id ? "bg-muted" : ""
-                    }`}
-                    onClick={() => setSelectedUserId(followedUser.id)}
-                  >
-                    <UserAvatar user={followedUser} size="sm" />
-                    <span>{followedUser.username}</span>
-                  </div>
-                ))}
+                <div className="space-y-1">
+                  {mutualFollowers?.map((followedUser) => (
+                    <div
+                      key={followedUser.id}
+                      className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer hover:bg-muted transition-colors ${
+                        selectedUserId === followedUser.id ? "bg-muted" : ""
+                      }`}
+                      onClick={() => {
+                        setSelectedUserId(followedUser.id);
+                        setShowUserList(false); // Hide user list on mobile after selection
+                      }}
+                    >
+                      <UserAvatar user={followedUser} size="sm" />
+                      <span className="text-sm">{followedUser.username}</span>
+                    </div>
+                  ))}
+                </div>
               </CardContent>
             </Card>
 
             {/* Chat Area */}
-            <Card className="col-span-3">
-              <CardHeader>
-                <CardTitle>
+            <Card className={`lg:col-span-3 ${showUserList ? 'hidden' : 'block'} lg:block`}>
+              <CardHeader className="border-b">
+                <CardTitle className="text-lg">
                   {selectedUserId
                     ? mutualFollowers?.find((u) => u.id === selectedUserId)?.username
                     : "Select a user to start chatting"}
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-0">
                 {/* Messages */}
-                <div className="h-[400px] overflow-y-auto space-y-4 mb-4">
+                <div className="h-[calc(100vh-400px)] lg:h-[400px] overflow-y-auto p-4 space-y-4">
                   {messagesLoading ? (
-                    <div className="flex justify-center">
+                    <div className="flex justify-center py-4">
                       <Loader2 className="h-6 w-6 animate-spin" />
                     </div>
                   ) : messages?.length ? (
@@ -179,15 +197,15 @@ export default function ChatPage() {
                               : "bg-muted"
                           }`}
                         >
-                          <p>{message.content}</p>
-                          <p className="text-xs mt-1 opacity-70">
+                          <p className="text-sm break-words">{message.content}</p>
+                          <p className="text-[10px] mt-1 opacity-70">
                             {format(new Date(message.createdAt), "PPp")}
                           </p>
                         </div>
                       </div>
                     ))
                   ) : (
-                    <p className="text-center text-muted-foreground">
+                    <p className="text-center text-sm text-muted-foreground">
                       {selectedUserId
                         ? "No messages yet. Start the conversation!"
                         : "Select a user to view messages"}
@@ -197,27 +215,31 @@ export default function ChatPage() {
 
                 {/* Message Input */}
                 {selectedUserId && (
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="Type a message..."
-                      value={messageInput}
-                      onChange={(e) => setMessageInput(e.target.value)}
-                      onKeyPress={(e) => {
-                        if (e.key === "Enter" && messageInput.trim()) {
-                          handleSendMessage();
-                        }
-                      }}
-                    />
-                    <Button
-                      onClick={handleSendMessage}
-                      disabled={!messageInput.trim() || sendMessageMutation.isPending}
-                    >
-                      {sendMessageMutation.isPending ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        "Send"
-                      )}
-                    </Button>
+                  <div className="border-t p-4">
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Type a message..."
+                        value={messageInput}
+                        onChange={(e) => setMessageInput(e.target.value)}
+                        onKeyPress={(e) => {
+                          if (e.key === "Enter" && messageInput.trim()) {
+                            handleSendMessage();
+                          }
+                        }}
+                        className="text-sm"
+                      />
+                      <Button
+                        onClick={handleSendMessage}
+                        disabled={!messageInput.trim() || sendMessageMutation.isPending}
+                        size="sm"
+                      >
+                        {sendMessageMutation.isPending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          "Send"
+                        )}
+                      </Button>
+                    </div>
                   </div>
                 )}
               </CardContent>
