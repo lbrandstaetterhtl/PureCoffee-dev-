@@ -42,11 +42,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Posts
   app.get("/api/posts", async (req, res) => {
     try {
+      console.log("Fetching posts with query:", req.query);
       const category = req.query.category as string | undefined;
       const posts = await storage.getPosts(category);
+      console.log("Retrieved posts count:", posts.length);
 
       const postsWithDetails = await Promise.all(posts.map(async (post) => {
         const author = await storage.getUser(post.authorId);
+        console.log("Post author:", author?.username);
+
         const comments = await storage.getComments(post.id);
         const commentsWithAuthors = await Promise.all(comments.map(async (comment) => {
           const commentAuthor = await storage.getUser(comment.authorId);
@@ -75,6 +79,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
       }));
 
+      console.log("Sending posts with details count:", postsWithDetails.length);
       res.json(postsWithDetails);
     } catch (error) {
       console.error('Error fetching posts:', error);
@@ -82,57 +87,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/posts/:id", async (req, res) => {
-    try {
-      const post = await storage.getPost(parseInt(req.params.id));
-      if (!post) return res.status(404).send("Post not found");
-
-      const author = await storage.getUser(post.authorId);
-      const comments = await storage.getComments(post.id);
-      const commentsWithAuthors = await Promise.all(comments.map(async (comment) => {
-        const commentAuthor = await storage.getUser(comment.authorId);
-        return {
-          ...comment,
-          author: { username: commentAuthor?.username || 'Unknown' }
-        };
-      }));
-
-      res.json({
-        ...post,
-        author: { username: author?.username || 'Unknown' },
-        comments: commentsWithAuthors
-      });
-    } catch (error) {
-      console.error('Error fetching post:', error);
-      res.status(500).send("Failed to fetch post");
-    }
-  });
-
   app.post("/api/posts", isAuthenticated, upload.single("media"), async (req, res) => {
-    const category = req.body.category;
+    try {
+      console.log("Creating new post with data:", req.body);
+      const category = req.body.category;
+      console.log("Post category:", category);
 
-    // Validate based on category
-    const schema = category === "discussion" ? insertDiscussionPostSchema : insertMediaPostSchema;
-    const result = schema.safeParse(req.body);
+      // Validate based on category
+      const schema = category === "discussion" ? insertDiscussionPostSchema : insertMediaPostSchema;
+      const result = schema.safeParse(req.body);
 
-    if (!result.success) return res.status(400).json(result.error);
+      if (!result.success) {
+        console.error("Validation error:", result.error);
+        return res.status(400).json(result.error);
+      }
 
-    let mediaUrl = null;
-    let mediaType = null;
+      let mediaUrl = null;
+      let mediaType = null;
 
-    if (req.file && category !== "discussion") {
-      mediaUrl = `/uploads/${req.file.filename}`;
-      mediaType = req.file.mimetype.startsWith("image/") ? "image" : "video";
+      if (req.file && category !== "discussion") {
+        mediaUrl = `/uploads/${req.file.filename}`;
+        mediaType = req.file.mimetype.startsWith("image/") ? "image" : "video";
+        console.log("Media info:", { mediaUrl, mediaType });
+      }
+
+      const post = await storage.createPost({
+        ...result.data,
+        authorId: req.user!.id,
+        mediaUrl,
+        mediaType,
+      });
+
+      console.log("Created post:", post);
+      res.status(201).json(post);
+    } catch (error) {
+      console.error("Error creating post:", error);
+      res.status(500).send("Failed to create post");
     }
-
-    const post = await storage.createPost({
-      ...result.data,
-      authorId: req.user!.id,
-      mediaUrl,
-      mediaType,
-    });
-
-    res.status(201).json(post);
   });
 
   // Comments

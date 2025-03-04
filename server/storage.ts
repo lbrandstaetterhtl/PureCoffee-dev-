@@ -136,10 +136,48 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPosts(category?: string): Promise<Post[]> {
+    console.log("Getting posts with category:", category);
+
     if (category) {
-      return db.select().from(posts).where(eq(posts.category, category));
+      // Handle multiple categories separated by comma
+      if (category.includes(',')) {
+        const categories = category.split(',');
+        console.log("Querying multiple categories:", categories);
+
+        const result = await db
+          .select()
+          .from(posts)
+          .where(
+            or(
+              ...categories.map(cat => eq(posts.category, cat.trim()))
+            )
+          )
+          .orderBy(desc(posts.createdAt));
+
+        console.log("Found posts for categories:", result);
+        return result;
+      }
+
+      // Single category
+      console.log("Querying single category:", category);
+      const result = await db
+        .select()
+        .from(posts)
+        .where(eq(posts.category, category))
+        .orderBy(desc(posts.createdAt));
+
+      console.log("Found posts for category:", result);
+      return result;
     }
-    return db.select().from(posts);
+
+    // No category filter
+    const result = await db
+      .select()
+      .from(posts)
+      .orderBy(desc(posts.createdAt));
+
+    console.log("Found all posts:", result);
+    return result;
   }
 
   async getPost(id: number): Promise<Post | undefined> {

@@ -40,12 +40,19 @@ export default function MediaFeedPage() {
   const { toast } = useToast();
   const { user } = useAuth();
 
-  const { data: posts, isLoading } = useQuery<PostWithAuthor[]>({
+  const { data: posts, isLoading, error } = useQuery<PostWithAuthor[]>({
     queryKey: ["/api/posts", "media"],
     queryFn: async () => {
+      console.log("Fetching media posts...");
       const res = await fetch("/api/posts?category=news,entertainment&include=author,comments,reactions,userReaction");
-      if (!res.ok) throw new Error("Failed to fetch posts");
-      return res.json();
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error("Failed to fetch posts:", errorText);
+        throw new Error(errorText || "Failed to fetch posts");
+      }
+      const data = await res.json();
+      console.log("Fetched posts:", data);
+      return data;
     },
   });
 
@@ -157,6 +164,10 @@ export default function MediaFeedPage() {
             <div className="flex justify-center p-8">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
+          ) : error ? (
+            <Alert variant="destructive">
+              <AlertDescription>Error fetching posts: {error.message}</AlertDescription>
+            </Alert>
           ) : posts?.length === 0 ? (
             <Alert>
               <AlertDescription>
