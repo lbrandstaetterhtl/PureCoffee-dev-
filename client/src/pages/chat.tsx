@@ -9,7 +9,8 @@ import { format } from "date-fns";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Info } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 type Message = {
   id: number;
@@ -25,13 +26,19 @@ type Message = {
   };
 };
 
+type User = {
+  id: number;
+  username: string;
+};
+
 export default function ChatPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [messageInput, setMessageInput] = useState("");
 
-  const { data: following } = useQuery({
+  // Fetch both followers and following
+  const { data: following } = useQuery<User[]>({
     queryKey: ["/api/following"],
     queryFn: async () => {
       const res = await fetch("/api/following");
@@ -39,6 +46,20 @@ export default function ChatPage() {
       return res.json();
     },
   });
+
+  const { data: followers } = useQuery<User[]>({
+    queryKey: ["/api/followers"],
+    queryFn: async () => {
+      const res = await fetch("/api/followers");
+      if (!res.ok) throw new Error("Failed to fetch followers");
+      return res.json();
+    },
+  });
+
+  // Calculate mutual followers (users who follow each other)
+  const mutualFollowers = following?.filter(
+    (followedUser) => followers?.some((follower) => follower.id === followedUser.id)
+  );
 
   const { data: messages, isLoading: messagesLoading } = useQuery<Message[]>({
     queryKey: ["/api/messages", selectedUserId],
@@ -95,10 +116,18 @@ export default function ChatPage() {
             {/* Users List */}
             <Card className="col-span-1">
               <CardHeader>
-                <CardTitle>Contacts</CardTitle>
+                <CardTitle>Mutual Followers</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {following?.map((followedUser: any) => (
+                {mutualFollowers?.length === 0 && (
+                  <Alert>
+                    <Info className="h-4 w-4" />
+                    <AlertDescription>
+                      You can only chat with users who follow you back.
+                    </AlertDescription>
+                  </Alert>
+                )}
+                {mutualFollowers?.map((followedUser) => (
                   <div
                     key={followedUser.id}
                     className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer hover:bg-muted ${
@@ -110,11 +139,6 @@ export default function ChatPage() {
                     <span>{followedUser.username}</span>
                   </div>
                 ))}
-                {!following?.length && (
-                  <p className="text-muted-foreground text-center">
-                    Follow users to start messaging
-                  </p>
-                )}
               </CardContent>
             </Card>
 
@@ -123,7 +147,7 @@ export default function ChatPage() {
               <CardHeader>
                 <CardTitle>
                   {selectedUserId
-                    ? following?.find((u: any) => u.id === selectedUserId)?.username
+                    ? mutualFollowers?.find((u) => u.id === selectedUserId)?.username
                     : "Select a user to start chatting"}
                 </CardTitle>
               </CardHeader>
@@ -188,7 +212,11 @@ export default function ChatPage() {
                       onClick={handleSendMessage}
                       disabled={!messageInput.trim() || sendMessageMutation.isPending}
                     >
-                      Send
+                      {sendMessageMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        "Send"
+                      )}
                     </Button>
                   </div>
                 )}

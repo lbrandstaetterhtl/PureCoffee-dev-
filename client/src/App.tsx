@@ -9,6 +9,7 @@ import { ProtectedRoute } from "./lib/protected-route";
 import AuthPage from "@/pages/auth-page";
 import NotFound from "@/pages/not-found";
 import ProfilePage from "@/pages/profile";
+import ChatPage from "@/pages/chat";
 
 // Feed Pages
 import MediaFeedPage from "@/pages/feed/media";
@@ -32,6 +33,9 @@ function Router() {
       <ProtectedRoute path="/post/discussions" component={PostDiscussionsPage} />
       <ProtectedRoute path="/post/news" component={PostNewsPage} />
       <ProtectedRoute path="/post/entertainment" component={PostEntertainmentPage} />
+
+      {/* Chat Route */}
+      <ProtectedRoute path="/chat" component={ChatPage} />
 
       {/* Other Routes */}
       <ProtectedRoute path="/profile" component={ProfilePage} />
