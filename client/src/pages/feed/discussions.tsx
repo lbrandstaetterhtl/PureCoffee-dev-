@@ -12,6 +12,7 @@ import { Report } from "@shared/schema";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { UserAvatar } from "@/components/ui/user-avatar";
+import { Input } from "@/components/ui/input";
 
 type PostWithAuthor = Post & {
   author: {
@@ -46,19 +47,6 @@ export default function DiscussionsFeedPage() {
       const res = await fetch("/api/posts?category=discussion");
       if (!res.ok) throw new Error("Failed to fetch posts");
       return res.json();
-    },
-  });
-
-  const reportMutation = useMutation<Report, Error, { postId: number; reason: string }>({
-    mutationFn: async ({ postId, reason }) => {
-      const res = await apiRequest("POST", "/api/reports", { postId, reason });
-      return res.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Report submitted",
-        description: "Thank you for helping keep our community safe.",
-      });
     },
   });
 
@@ -98,6 +86,20 @@ export default function DiscussionsFeedPage() {
       toast({
         title: "Success",
         description: "User unfollowed successfully",
+      });
+    },
+  });
+
+  const createCommentMutation = useMutation({
+    mutationFn: async ({ postId, content }: { postId: number; content: string }) => {
+      const res = await apiRequest("POST", "/api/comments", { postId, content });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/posts", "discussions"] });
+      toast({
+        title: "Success",
+        description: "Comment added successfully",
       });
     },
   });
@@ -158,21 +160,6 @@ export default function DiscussionsFeedPage() {
                   <CardContent>
                     <p className="whitespace-pre-wrap mb-4">{post.content}</p>
 
-                    {/* Display media if present */}
-                    {post.mediaUrl && (
-                      <div className="mt-4 rounded-lg overflow-hidden">
-                        {post.mediaType === "image" ? (
-                          <img
-                            src={post.mediaUrl}
-                            alt="Post media"
-                            className="w-full h-auto max-h-96 object-cover"
-                          />
-                        ) : post.mediaType === "video" ? (
-                          <video src={post.mediaUrl} controls className="w-full max-h-96" />
-                        ) : null}
-                      </div>
-                    )}
-
                     {/* Comments Section */}
                     <div className="mt-6 space-y-4">
                       <h3 className="font-semibold flex items-center gap-2">
@@ -180,11 +167,42 @@ export default function DiscussionsFeedPage() {
                         Comments
                       </h3>
 
-                      {/* Comments List */}
+                      {/* Add Comment Form */}
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Write a comment..."
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter' && (e.target as HTMLInputElement).value.trim()) {
+                              createCommentMutation.mutate({
+                                postId: post.id,
+                                content: (e.target as HTMLInputElement).value.trim()
+                              });
+                              (e.target as HTMLInputElement).value = '';
+                            }
+                          }}
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const input = document.querySelector(`input[data-post-id="${post.id}"]`) as HTMLInputElement;
+                            if (input?.value?.trim()) {
+                              createCommentMutation.mutate({
+                                postId: post.id,
+                                content: input.value.trim()
+                              });
+                              input.value = '';
+                            }
+                          }}
+                        >
+                          Post
+                        </Button>
+                      </div>
+
                       <div className="space-y-3">
                         {post.comments?.map((comment) => (
                           <div key={comment.id} className="bg-muted/50 rounded-lg p-3">
-                            <div className="flex items-center gap-2 mb-2">
+                            <div className="flex items-center gap-2">
                               <UserAvatar user={comment.author} size="sm" />
                               <div>
                                 <span className="text-sm font-medium">{comment.author.username}</span>

@@ -13,6 +13,7 @@ import { Report } from "@shared/schema";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { UserAvatar } from "@/components/ui/user-avatar";
+import { Input } from "@/components/ui/input";
 
 type PostWithAuthor = Post & {
   author: {
@@ -84,6 +85,20 @@ export default function MediaFeedPage() {
       toast({
         title: "Success",
         description: "User unfollowed successfully",
+      });
+    },
+  });
+
+  const createCommentMutation = useMutation({
+    mutationFn: async ({ postId, content }: { postId: number; content: string }) => {
+      const res = await apiRequest("POST", "/api/comments", { postId, content });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/posts", "media"] });
+      toast({
+        title: "Success",
+        description: "Comment added successfully",
       });
     },
   });
@@ -186,6 +201,39 @@ export default function MediaFeedPage() {
                         <MessageCircle className="h-4 w-4" />
                         Comments
                       </h3>
+
+                      {/* Add Comment Form */}
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Write a comment..."
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter' && (e.target as HTMLInputElement).value.trim()) {
+                              createCommentMutation.mutate({
+                                postId: post.id,
+                                content: (e.target as HTMLInputElement).value.trim()
+                              });
+                              (e.target as HTMLInputElement).value = '';
+                            }
+                          }}
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const input = document.querySelector(`input[data-post-id="${post.id}"]`) as HTMLInputElement;
+                            if (input?.value?.trim()) {
+                              createCommentMutation.mutate({
+                                postId: post.id,
+                                content: input.value.trim()
+                              });
+                              input.value = '';
+                            }
+                          }}
+                        >
+                          Post
+                        </Button>
+                      </div>
+
                       <div className="space-y-3">
                         {post.comments?.map((comment) => (
                           <div key={comment.id} className="bg-muted/50 rounded-lg p-3">
