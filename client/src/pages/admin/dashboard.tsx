@@ -122,6 +122,7 @@ export default function AdminDashboard() {
 
     if (targetUser.role === 'user') {
       if (window.confirm(`Are you sure you want to make ${targetUser.username} an admin? This will give them administrative privileges.`)) {
+        console.log('Making admin:', targetUser.username);
         updateUserMutation.mutate({
           userId: targetUser.id,
           data: { role: 'admin' }
@@ -256,10 +257,13 @@ export default function AdminDashboard() {
                                       <Button
                                         size="sm"
                                         variant={targetUser.emailVerified ? "ghost" : "default"}
-                                        onClick={() => updateUserMutation.mutate({
-                                          userId: targetUser.id,
-                                          data: { emailVerified: !targetUser.emailVerified }
-                                        })}
+                                        onClick={() => {
+                                          console.log('Verifying user:', targetUser.username);
+                                          updateUserMutation.mutate({
+                                            userId: targetUser.id,
+                                            data: { emailVerified: true }
+                                          });
+                                        }}
                                         disabled={updateUserMutation.isPending}
                                       >
                                         {targetUser.emailVerified ? (
@@ -278,7 +282,13 @@ export default function AdminDashboard() {
                                         <Button
                                           size="sm"
                                           variant="default"
-                                          onClick={() => handleRoleChange(targetUser)}
+                                          onClick={() => {
+                                            console.log('Making admin:', targetUser.username);
+                                            updateUserMutation.mutate({
+                                              userId: targetUser.id,
+                                              data: { role: 'admin' }
+                                            });
+                                          }}
                                           disabled={updateUserMutation.isPending}
                                         >
                                           <Shield className="h-4 w-4 mr-1" />

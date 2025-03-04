@@ -728,7 +728,7 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
         res.json({ message: "User banned and deleted successfully" });
       } else {
         // For non-ban updates
-        const updatedUser = await storage.updateUserProfile(userId, req.body);
+        const updatedUser = await storage.updateUserProfile(userId, req.body.data);
         console.log('Updated user:', updatedUser);
         res.json(updatedUser);
       }
