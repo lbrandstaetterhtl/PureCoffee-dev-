@@ -65,6 +65,7 @@ export default function ChatPage() {
     (followedUser) => followers?.some((follower) => follower.id === followedUser.id)
   );
 
+  // Messages
   const { data: messages, isLoading: messagesLoading } = useQuery<Message[]>({
     queryKey: ["/api/messages", selectedUserId],
     queryFn: async () => {
@@ -74,6 +75,11 @@ export default function ChatPage() {
       return res.json();
     },
     enabled: !!selectedUserId,
+    onSuccess: () => {
+      // Invalidate notifications when messages are loaded
+      queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/messages/unread/count"] });
+    },
   });
 
   const sendMessageMutation = useMutation({
