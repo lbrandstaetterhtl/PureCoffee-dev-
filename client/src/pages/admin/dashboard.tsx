@@ -263,13 +263,13 @@ export default function AdminDashboard() {
                             <TableCell>{report.reporter?.username}</TableCell>
                             <TableCell>
                               {report.content?.type === 'post' ? "Post" :
-                               report.content?.type === 'discussion' ? "Discussion" :
-                               "Comment"}
+                                report.content?.type === 'discussion' ? "Discussion" :
+                                "Comment"}
                             </TableCell>
                             <TableCell className="max-w-xs truncate">
                               {report.content?.type === 'post' ? report.content.title :
-                               report.content?.type === 'discussion' ? report.content.title :
-                               report.content?.content}
+                                report.content?.type === 'discussion' ? report.content.title :
+                                report.content?.content}
                             </TableCell>
                             <TableCell>{report.reason}</TableCell>
                             <TableCell>

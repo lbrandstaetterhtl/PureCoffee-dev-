@@ -226,12 +226,22 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createReport(report: Omit<Report, "id" | "createdAt" | "status">): Promise<Report> {
-    const [newReport] = await db.insert(reports).values({ ...report, status: "pending" }).returning();
+    console.log("Creating report with data:", report); // Debug log
+    const [newReport] = await db.insert(reports)
+      .values({ ...report, status: "pending" })
+      .returning();
+    console.log("Created report:", newReport); // Debug log
     return newReport;
   }
 
   async getReports(): Promise<Report[]> {
-    return db.select().from(reports).orderBy(desc(reports.createdAt));
+    console.log("Fetching all reports"); // Debug log
+    const result = await db
+      .select()
+      .from(reports)
+      .orderBy(desc(reports.createdAt));
+    console.log("Found reports:", result); // Debug log
+    return result;
   }
 
   async updateReportStatus(id: number, status: string): Promise<Report> {

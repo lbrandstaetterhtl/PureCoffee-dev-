@@ -263,13 +263,20 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
 
   // Update the report creation handler to properly validate discussion reports
   app.post("/api/reports", isAuthenticated, async (req, res) => {
+    console.log('Received report data:', req.body); // Debug log
+
     const result = insertReportSchema.safeParse(req.body);
-    if (!result.success) return res.status(400).json(result.error);
+    if (!result.success) {
+      console.error('Report validation failed:', result.error);
+      return res.status(400).json(result.error);
+    }
 
     try {
       // Verify the discussion exists if discussionId is provided
       if (result.data.discussionId) {
         const discussion = await storage.getPost(result.data.discussionId);
+        console.log('Found discussion for report:', discussion); // Debug log
+
         if (!discussion || discussion.category !== 'discussion') {
           return res.status(404).send("Discussion not found");
         }
@@ -279,6 +286,8 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
         ...result.data,
         reporterId: req.user!.id,
       });
+
+      console.log('Created report:', report); // Debug log
 
       // Send notification to admin users about new report
       const adminSockets = Array.from(connections.entries())
@@ -601,36 +610,57 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
   app.get("/api/admin/reports", isAdmin, async (req, res) => {
     try {
       const reports = await storage.getReports();
+      console.log('Raw reports:', reports); // Debug log
+
       const enrichedReports = await Promise.all(reports.map(async (report) => {
         const reporter = await storage.getUser(report.reporterId);
         let reportedContent = null;
         let contentType = null;
 
-        if (report.postId) {
-          reportedContent = await storage.getPost(report.postId);
-          contentType = 'post';
-        } else if (report.commentId) {
-          reportedContent = await storage.getComment(report.commentId);
-          contentType = 'comment';
-        } else if (report.discussionId) {
-          reportedContent = await storage.getPost(report.discussionId);
-          contentType = 'discussion';
+        // Check for discussion first since it's a special type of post
+        if (report.discussionId) {
+          const discussion = await storage.getPost(report.discussionId);
+          if (discussion && discussion.category === 'discussion') {
+            reportedContent = discussion;
+            contentType = 'discussion';
+            console.log('Found discussion report:', { reportId: report.id, discussion });
+          }
+        }
+        // Then check for regular posts
+        else if (report.postId) {
+          const post = await storage.getPost(report.postId);
+          if (post) {
+            reportedContent = post;
+            contentType = 'post';
+            console.log('Found post report:', { reportId: report.id, post });
+          }
+        }
+        // Finally check for comments
+        else if (report.commentId) {
+          const comment = await storage.getComment(report.commentId);
+          if (comment) {
+            reportedContent = comment;
+            contentType = 'comment';
+            console.log('Found comment report:', { reportId: report.id, comment });
+          }
         }
 
-        return {
+        const enrichedReport = {
           ...report,
           reporter: {
             username: reporter?.username || 'Unknown'
           },
           content: reportedContent ? {
             type: contentType,
-            title: (reportedContent as any).title || null,
-            content: (reportedContent as any).content
+            title: contentType === 'comment' ? null : reportedContent.title,
+            content: reportedContent.content
           } : null
         };
+
+        console.log('Enriched report:', enrichedReport);
+        return enrichedReport;
       }));
 
-      console.log('Enriched reports:', enrichedReports); // Add logging
       res.json(enrichedReports);
     } catch (error) {
       console.error('Error fetching reports:', error);
