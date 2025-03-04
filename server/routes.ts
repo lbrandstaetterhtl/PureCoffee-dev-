@@ -582,12 +582,12 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
         return res.status(404).send("Post not found");
       }
 
-      // Admin/owner can delete any post, regular users can only delete their own
-      if (post.authorId !== req.user!.id && req.user!.role !== 'admin' && req.user!.role !== 'owner') {
-        return res.status(403).send("You don't have permission to delete this post");
+      // Check if user owns the post
+      if (post.authorId !== req.user!.id) {
+        return res.status(403).send("You can only delete your own posts");
       }
 
-      // Delete associated comments first
+      // Delete associated comments
       await storage.deleteComments(postId);
 
       // Delete associated reactions
@@ -596,7 +596,7 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
       // Delete associated reports
       await storage.deleteReports(postId);
 
-      // Finally delete the post
+      // Delete the post
       await storage.deletePost(postId);
 
       res.sendStatus(200);

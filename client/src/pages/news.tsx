@@ -26,7 +26,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { ThumbsUp, ThumbsDown, Flag, AlertTriangle, Loader2, Newspaper, Image, Video, MessageCircle, UserCircle, Trash2 } from "lucide-react";
+import { ThumbsUp, ThumbsDown, Flag, AlertTriangle, Loader2, Newspaper, Image, Video, MessageCircle, UserCircle } from "lucide-react";
 import { format } from "date-fns";
 import * as z from 'zod';
 import { Report } from "@shared/schema";
@@ -145,28 +145,6 @@ export default function NewsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/posts", "news"] });
-    },
-  });
-
-  const deletePostMutation = useMutation({
-    mutationFn: async (postId: number) => {
-      const res = await apiRequest("DELETE", `/api/posts/${postId}`);
-      if (!res.ok) throw new Error("Failed to delete post");
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/posts", "news"] });
-      toast({
-        title: "Post deleted",
-        description: "The news post has been deleted successfully.",
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
     },
   });
 
@@ -391,21 +369,6 @@ export default function NewsPage() {
                         <ThumbsDown className={`h-4 w-4 mr-1 ${post.userReaction?.isLike === false ? "fill-current" : ""}`} />
                         <span>{post.reactions.dislikes}</span>
                       </Button>
-                      {(user?.role === 'admin' || user?.role === 'owner' || post.authorId === user?.id) && (
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => {
-                            if (window.confirm("Are you sure you want to delete this news post?")) {
-                              deletePostMutation.mutate(post.id);
-                            }
-                          }}
-                          disabled={deletePostMutation.isPending}
-                        >
-                          <Trash2 className="h-4 w-4 mr-1" />
-                          Delete
-                        </Button>
-                      )}
                     </div>
                     <Button
                       variant="ghost"
