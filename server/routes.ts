@@ -191,50 +191,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/posts", isAuthenticated, upload.single("media"), async (req, res) => {
-    try {
-      console.log('Post creation request:', {
-        body: req.body,
-        file: req.file,
-        category: req.body.category
-      });
+    const category = req.body.category;
 
-      // Validate based on category
-      const schema = req.body.category === "discussion" ? insertDiscussionPostSchema : insertMediaPostSchema;
-      const postData = {
-        title: req.body.title,
-        content: req.body.content,
-        category: req.body.category,
-        authorId: req.user!.id,
-        mediaUrl: null,
-        mediaType: null
-      };
+    // Validate based on category
+    const schema = category === "discussion" ? insertDiscussionPostSchema : insertMediaPostSchema;
+    const result = schema.safeParse(req.body);
 
-      if (req.file) {
-        postData.mediaUrl = `/uploads/${req.file.filename}`;
-        postData.mediaType = req.file.mimetype.startsWith("image/") ? "image" : "video";
-      }
+    if (!result.success) return res.status(400).json(result.error);
 
-      const result = schema.safeParse({
-        title: postData.title,
-        content: postData.content,
-        category: postData.category,
-        mediaUrl: postData.mediaUrl,
-        mediaType: postData.mediaType
-      });
+    let mediaUrl = null;
+    let mediaType = null;
 
-      if (!result.success) {
-        console.error('Validation error:', result.error);
-        return res.status(400).json(result.error);
-      }
-
-      const post = await storage.createPost(postData);
-
-      console.log('Post created successfully:', post);
-      res.status(201).json(post);
-    } catch (error) {
-      console.error('Error creating post:', error);
-      res.status(500).send("Failed to create post");
+    if (req.file && category !== "discussion") {
+      mediaUrl = `/uploads/${req.file.filename}`;
+      mediaType = req.file.mimetype.startsWith("image/") ? "image" : "video";
     }
+
+    const post = await storage.createPost({
+      ...result.data,
+      authorId: req.user!.id,
+      mediaUrl,
+      mediaType,
+    });
+
+    res.status(201).json(post);
   });
 
   // Comments
@@ -494,16 +474,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }));
       }
 
-      // Only create notification if one doesn't exist for this sender
-      const existingNotification = await storage.getUnreadNotificationByTypeAndUser(receiverId, "new_message", senderId);
-      if (!existingNotification) {
-        // Create notification for new message
-        await storage.createNotification({
-          userId: receiverId,
-          type: "new_message",
-          fromUserId: senderId,
-        });
-      }
+      // Create notification for new message
+      await storage.createNotification({
+        userId: receiverId,
+        type: "new_message",
+        fromUserId: senderId,
+      });
 
       res.status(201).json(message);
     } catch (error) {

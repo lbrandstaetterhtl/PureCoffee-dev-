@@ -94,14 +94,10 @@ export const insertDiscussionPostSchema = basePostSchema.extend({
   category: z.literal("discussion"),
 });
 
-export const insertMediaPostSchema = createInsertSchema(posts).pick({
-  title: true,
-  content: true,
-  category: true,
-}).extend({
+export const insertMediaPostSchema = basePostSchema.extend({
   category: z.enum(["news", "entertainment"]),
-  mediaUrl: z.string().nullable().optional(),
-  mediaType: z.enum(["image", "video"]).nullable().optional(),
+  mediaFile: z.any().optional(),
+  mediaType: z.enum(["image", "video"]).optional(),
 });
 
 export const insertCommentSchema = createInsertSchema(comments).pick({
