@@ -12,14 +12,18 @@ export default function UserProfilePage() {
   const { data: profile, isLoading, error } = useQuery({
     queryKey: ["/api/users", username],
     queryFn: async () => {
+      console.log("Fetching user profile for:", username); // Debug log
       const res = await fetch(`/api/users/${username}`);
       if (!res.ok) {
         if (res.status === 404) {
           throw new Error("User not found");
         }
-        throw new Error("Failed to fetch user profile");
+        const errorText = await res.text();
+        throw new Error(errorText || "Failed to fetch user profile");
       }
-      return res.json();
+      const data = await res.json();
+      console.log("Received user profile:", data); // Debug log
+      return data;
     },
     enabled: !!username,
   });

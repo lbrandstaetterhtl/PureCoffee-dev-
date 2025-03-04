@@ -688,6 +688,31 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
   });
 
   // Admin Routes
+  // Add this route after the other user-related routes, before the admin routes
+  app.get("/api/users/:username", async (req, res) => {
+    try {
+      const user = await storage.getUserByUsername(req.params.username);
+
+      if (!user) {
+        return res.status(404).send("User not found");
+      }
+
+      // Return only safe user data (exclude password, etc)
+      const safeUser = {
+        id: user.id,
+        username: user.username,
+        karma: user.karma,
+        createdAt: user.createdAt,
+        role: user.role
+      };
+
+      res.json(safeUser);
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+      res.status(500).send("Failed to fetch user profile");
+    }
+  });
+
   app.get("/api/admin/users", isAdmin, async (req, res) => {
     try {
       const users = await storage.getUsers(); // Use storage interface
