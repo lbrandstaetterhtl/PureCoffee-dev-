@@ -25,10 +25,10 @@ export const posts = pgTable("posts", {
   title: text("title").notNull(),
   content: text("content").notNull(),
   authorId: integer("author_id").notNull(),
-  category: text("category").notNull(), // 'discussion', 'news', 'entertainment'
+  category: text("category").notNull(),
   karma: integer("karma").notNull().default(0),
   mediaUrl: text("media_url"),
-  mediaType: text("media_type"), // 'image' or 'video'
+  mediaType: text("media_type"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -51,30 +51,52 @@ export const reports = pgTable("reports", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const followers = pgTable("followers", {
+  id: serial("id").primaryKey(),
+  followerId: integer("follower_id").notNull(),
+  followingId: integer("following_id").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const notifications = pgTable("notifications", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  type: text("type").notNull(),
+  fromUserId: integer("from_user_id").notNull(),
+  read: boolean("read").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const messages = pgTable("messages", {
+  id: serial("id").primaryKey(),
+  senderId: integer("sender_id").notNull(),
+  receiverId: integer("receiver_id").notNull(),
+  content: text("content").notNull(),
+  read: boolean("read").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const postLikes = pgTable("post_likes", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull(),
   postId: integer("post_id").notNull(),
-  isLike: boolean("is_like").notNull(), // true for like, false for dislike
+  isLike: boolean("is_like").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-// Base post schema
 const basePostSchema = createInsertSchema(posts).pick({
   title: true,
   content: true,
   category: true,
 });
 
-// Discussion post schema (text only)
 export const insertDiscussionPostSchema = basePostSchema.extend({
   category: z.literal("discussion"),
 });
 
-// News and entertainment post schema (with media)
 export const insertMediaPostSchema = basePostSchema.extend({
   category: z.enum(["news", "entertainment"]),
-  mediaFile: z.any().optional(), // File input field
+  mediaFile: z.any().optional(),
   mediaType: z.enum(["image", "video"]).optional(),
 });
 
@@ -98,15 +120,11 @@ export const insertUserSchema = createInsertSchema(users).pick({
   password: z.string().min(8, "Password must be at least 8 characters long"),
 });
 
-// Add login schema after the insertUserSchema
 export const loginSchema = z.object({
   username: z.string().min(1, "Username is required"),
   password: z.string().min(1, "Password is required"),
 });
 
-export type LoginCredentials = z.infer<typeof loginSchema>;
-
-// Add update profile schema
 export const updateProfileSchema = z.object({
   username: z.string().min(1, "Username is required"),
   email: z.string().email("Please enter a valid email address"),
@@ -121,6 +139,17 @@ export const updatePasswordSchema = z.object({
   path: ["confirmPassword"],
 });
 
+export const followUserSchema = z.object({
+  userId: z.number(),
+});
+
+export const messageSchema = z.object({
+  receiverId: z.number(),
+  content: z.string().min(1, "Message cannot be empty"),
+});
+
+
+export type LoginCredentials = z.infer<typeof loginSchema>;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type InsertDiscussionPost = z.infer<typeof insertDiscussionPostSchema>;
 export type InsertMediaPost = z.infer<typeof insertMediaPostSchema>;
@@ -131,3 +160,7 @@ export type Report = typeof reports.$inferSelect;
 export type UpdateProfile = z.infer<typeof updateProfileSchema>;
 export type UpdatePassword = z.infer<typeof updatePasswordSchema>;
 export type PostLike = typeof postLikes.$inferSelect;
+export type Follower = typeof followers.$inferSelect;
+export type Notification = typeof notifications.$inferSelect;
+export type Message = typeof messages.$inferSelect;
+export type InsertMessage = z.infer<typeof messageSchema>;

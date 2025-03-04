@@ -1,7 +1,8 @@
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
-import { Coffee, MessageSquare, Newspaper, SmilePlus, UserCircle } from "lucide-react";
+import { Coffee, MessageSquare, Newspaper, UserCircle } from "lucide-react";
+import { NotificationsDialog } from "@/components/notifications/notifications-dialog";
 
 export function Navbar() {
   const [location] = useLocation();
@@ -38,13 +39,16 @@ export function Navbar() {
             ))}
           </div>
 
-          <Button
-            variant="ghost"
-            onClick={() => logoutMutation.mutate()}
-            disabled={logoutMutation.isPending}
-          >
-            Logout
-          </Button>
+          <div className="flex items-center space-x-2">
+            <NotificationsDialog />
+            <Button
+              variant="ghost"
+              onClick={() => logoutMutation.mutate()}
+              disabled={logoutMutation.isPending}
+            >
+              Logout
+            </Button>
+          </div>
         </div>
       </div>
     </nav>

@@ -5,7 +5,7 @@ import { storage } from "./storage";
 import multer from "multer";
 import path from "path";
 import express from "express";
-import { insertDiscussionPostSchema, insertMediaPostSchema, insertCommentSchema, insertReportSchema } from "@shared/schema";
+import { insertDiscussionPostSchema, insertMediaPostSchema, insertCommentSchema, insertReportSchema, messageSchema } from "@shared/schema";
 
 // Configure multer for file uploads
 const upload = multer({
@@ -256,6 +256,151 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+
+  // Followers
+  app.post("/api/follow/:userId", isAuthenticated, async (req, res) => {
+    try {
+      const followingId = parseInt(req.params.userId);
+      const followerId = req.user!.id;
+
+      if (followerId === followingId) {
+        return res.status(400).send("Cannot follow yourself");
+      }
+
+      const isAlreadyFollowing = await storage.isFollowing(followerId, followingId);
+      if (isAlreadyFollowing) {
+        return res.status(400).send("Already following this user");
+      }
+
+      await storage.followUser(followerId, followingId);
+
+      // Create notification for the user being followed
+      await storage.createNotification({
+        userId: followingId,
+        type: "new_follower",
+        fromUserId: followerId,
+      });
+
+      res.sendStatus(200);
+    } catch (error) {
+      console.error('Error following user:', error);
+      res.status(500).send("Failed to follow user");
+    }
+  });
+
+  app.delete("/api/follow/:userId", isAuthenticated, async (req, res) => {
+    try {
+      const followingId = parseInt(req.params.userId);
+      const followerId = req.user!.id;
+
+      await storage.unfollowUser(followerId, followingId);
+      res.sendStatus(200);
+    } catch (error) {
+      console.error('Error unfollowing user:', error);
+      res.status(500).send("Failed to unfollow user");
+    }
+  });
+
+  app.get("/api/followers", isAuthenticated, async (req, res) => {
+    try {
+      const followers = await storage.getFollowers(req.user!.id);
+      res.json(followers);
+    } catch (error) {
+      console.error('Error getting followers:', error);
+      res.status(500).send("Failed to get followers");
+    }
+  });
+
+  app.get("/api/following", isAuthenticated, async (req, res) => {
+    try {
+      const following = await storage.getFollowing(req.user!.id);
+      res.json(following);
+    } catch (error) {
+      console.error('Error getting following:', error);
+      res.status(500).send("Failed to get following");
+    }
+  });
+
+  // Notifications
+  app.get("/api/notifications", isAuthenticated, async (req, res) => {
+    try {
+      const notifications = await storage.getNotifications(req.user!.id);
+      res.json(notifications);
+    } catch (error) {
+      console.error('Error getting notifications:', error);
+      res.status(500).send("Failed to get notifications");
+    }
+  });
+
+  app.post("/api/notifications/:id/read", isAuthenticated, async (req, res) => {
+    try {
+      await storage.markNotificationAsRead(parseInt(req.params.id));
+      res.sendStatus(200);
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+      res.status(500).send("Failed to mark notification as read");
+    }
+  });
+
+  // Messages
+  app.post("/api/messages", isAuthenticated, async (req, res) => {
+    try {
+      const result = messageSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json(result.error);
+      }
+
+      const senderId = req.user!.id;
+      const { receiverId, content } = result.data;
+
+      // Check if users follow each other
+      const isFollowing = await storage.isFollowing(senderId, receiverId);
+      const isFollowedBy = await storage.isFollowing(receiverId, senderId);
+
+      if (!isFollowing || !isFollowedBy) {
+        return res.status(403).send("You can only message users who follow you and whom you follow");
+      }
+
+      const message = await storage.createMessage({
+        senderId,
+        receiverId,
+        content,
+      });
+
+      // Create notification for new message
+      await storage.createNotification({
+        userId: receiverId,
+        type: "new_message",
+        fromUserId: senderId,
+      });
+
+      res.status(201).json(message);
+    } catch (error) {
+      console.error('Error sending message:', error);
+      res.status(500).send("Failed to send message");
+    }
+  });
+
+  app.get("/api/messages/:userId", isAuthenticated, async (req, res) => {
+    try {
+      const otherUserId = parseInt(req.params.userId);
+      const messages = await storage.getMessages(req.user!.id, otherUserId);
+      res.json(messages);
+    } catch (error) {
+      console.error('Error getting messages:', error);
+      res.status(500).send("Failed to get messages");
+    }
+  });
+
+  app.get("/api/messages/unread/count", isAuthenticated, async (req, res) => {
+    try {
+      const count = await storage.getUnreadMessageCount(req.user!.id);
+      res.json({ count });
+    } catch (error) {
+      console.error('Error getting unread message count:', error);
+      res.status(500).send("Failed to get unread message count");
+    }
+  });
 
   const httpServer = createServer(app);
   return httpServer;

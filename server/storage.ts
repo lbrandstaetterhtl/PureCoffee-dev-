@@ -1,7 +1,7 @@
-import { User, Post, Comment, Report, InsertUser, InsertDiscussionPost, InsertMediaPost } from "@shared/schema";
+import { User, Post, Comment, Report, InsertUser, InsertDiscussionPost, InsertMediaPost, Notification, Message, followers, notifications, messages } from "@shared/schema";
 import session from "express-session";
 import { db } from "./db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or, desc, asc, sql } from "drizzle-orm";
 import { users, posts, comments, reports, postLikes } from "@shared/schema";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
@@ -49,6 +49,31 @@ export interface IStorage {
   removePostReaction(userId: number, postId: number): Promise<void>;
   getUserPostReaction(userId: number, postId: number): Promise<{ isLike: boolean } | null>;
   getPostReactions(postId: number): Promise<{ likes: number; dislikes: number }>;
+
+  // Followers
+  followUser(followerId: number, followingId: number): Promise<void>;
+  unfollowUser(followerId: number, followingId: number): Promise<void>;
+  getFollowers(userId: number): Promise<User[]>;
+  getFollowing(userId: number): Promise<User[]>;
+  isFollowing(followerId: number, followingId: number): Promise<boolean>;
+
+  // Notifications
+  createNotification(notification: {
+    userId: number;
+    type: string;
+    fromUserId: number;
+  }): Promise<Notification>;
+  getNotifications(userId: number): Promise<Notification[]>;
+  markNotificationAsRead(notificationId: number): Promise<void>;
+
+  // Messages
+  createMessage(message: {
+    senderId: number;
+    receiverId: number;
+    content: string;
+  }): Promise<Message>;
+  getMessages(userId1: number, userId2: number): Promise<Message[]>;
+  getUnreadMessageCount(userId: number): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -201,6 +226,139 @@ export class DatabaseStorage implements IStorage {
       likes: reactions.filter(r => r.isLike).length,
       dislikes: reactions.filter(r => !r.isLike).length
     };
+  }
+
+  // Followers
+  async followUser(followerId: number, followingId: number): Promise<void> {
+    await db.insert(followers).values({ followerId, followingId });
+  }
+
+  async unfollowUser(followerId: number, followingId: number): Promise<void> {
+    await db.delete(followers)
+      .where(and(
+        eq(followers.followerId, followerId),
+        eq(followers.followingId, followingId)
+      ));
+  }
+
+  async getFollowers(userId: number): Promise<User[]> {
+    const result = await db
+      .select({
+        id: users.id,
+        username: users.username,
+        email: users.email,
+        karma: users.karma,
+        emailVerified: users.emailVerified,
+        createdAt: users.createdAt,
+      })
+      .from(followers)
+      .innerJoin(users, eq(followers.followerId, users.id))
+      .where(eq(followers.followingId, userId));
+
+    return result;
+  }
+
+  async getFollowing(userId: number): Promise<User[]> {
+    const result = await db
+      .select({
+        id: users.id,
+        username: users.username,
+        email: users.email,
+        karma: users.karma,
+        emailVerified: users.emailVerified,
+        createdAt: users.createdAt,
+      })
+      .from(followers)
+      .innerJoin(users, eq(followers.followingId, users.id))
+      .where(eq(followers.followerId, userId));
+
+    return result;
+  }
+
+  async isFollowing(followerId: number, followingId: number): Promise<boolean> {
+    const [result] = await db
+      .select()
+      .from(followers)
+      .where(and(
+        eq(followers.followerId, followerId),
+        eq(followers.followingId, followingId)
+      ));
+
+    return !!result;
+  }
+
+  // Notifications
+  async createNotification(notification: {
+    userId: number;
+    type: string;
+    fromUserId: number;
+  }): Promise<Notification> {
+    const [result] = await db
+      .insert(notifications)
+      .values(notification)
+      .returning();
+
+    return result;
+  }
+
+  async getNotifications(userId: number): Promise<Notification[]> {
+    return db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.userId, userId))
+      .orderBy(desc(notifications.createdAt));
+  }
+
+  async markNotificationAsRead(notificationId: number): Promise<void> {
+    await db
+      .update(notifications)
+      .set({ read: true })
+      .where(eq(notifications.id, notificationId));
+  }
+
+  // Messages
+  async createMessage(message: {
+    senderId: number;
+    receiverId: number;
+    content: string;
+  }): Promise<Message> {
+    const [result] = await db
+      .insert(messages)
+      .values(message)
+      .returning();
+
+    return result;
+  }
+
+  async getMessages(userId1: number, userId2: number): Promise<Message[]> {
+    return db
+      .select()
+      .from(messages)
+      .where(
+        or(
+          and(
+            eq(messages.senderId, userId1),
+            eq(messages.receiverId, userId2)
+          ),
+          and(
+            eq(messages.senderId, userId2),
+            eq(messages.receiverId, userId1)
+          )
+        )
+      )
+      .orderBy(asc(messages.createdAt));
+  }
+
+  async getUnreadMessageCount(userId: number): Promise<number> {
+    const result = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(messages)
+      .where(and(
+        eq(messages.receiverId, userId),
+        eq(messages.read, false)
+      ));
+
+    return result[0].count;
   }
 }
 

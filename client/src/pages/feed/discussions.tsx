@@ -10,12 +10,15 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Report } from "@shared/schema";
 import { Link } from "wouter";
+import { useAuth } from "@/hooks/use-auth";
 import { UserAvatar } from "@/components/ui/user-avatar";
 
 type PostWithAuthor = Post & {
   author: {
     username: string;
     profilePictureUrl: string | null;
+    id: number; // Added id for follow/unfollow functionality
+    isFollowing: boolean; // Added isFollowing for follow button state
   };
   comments: Array<{
     id: number;
@@ -37,11 +40,12 @@ type PostWithAuthor = Post & {
 
 export default function DiscussionsFeedPage() {
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const { data: posts, isLoading } = useQuery<PostWithAuthor[]>({
     queryKey: ["/api/posts", "discussions"],
     queryFn: async () => {
-      const res = await fetch("/api/posts?category=discussion&include=author,comments,reactions,userReaction");
+      const res = await fetch("/api/posts?category=discussion&include=author,comments,reactions,userReaction,isFollowing");
       if (!res.ok) throw new Error("Failed to fetch posts");
       return res.json();
     },
@@ -67,6 +71,34 @@ export default function DiscussionsFeedPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/posts", "discussions"] });
+    },
+  });
+
+  const followMutation = useMutation({
+    mutationFn: async (userId: number) => {
+      const res = await apiRequest("POST", `/api/follow/${userId}`);
+      if (!res.ok) throw new Error(await res.text());
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/following"] });
+      toast({
+        title: "Success",
+        description: "User followed successfully",
+      });
+    },
+  });
+
+  const unfollowMutation = useMutation({
+    mutationFn: async (userId: number) => {
+      const res = await apiRequest("DELETE", `/api/follow/${userId}`);
+      if (!res.ok) throw new Error(await res.text());
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/following"] });
+      toast({
+        title: "Success",
+        description: "User unfollowed successfully",
+      });
     },
   });
 
@@ -107,6 +139,20 @@ export default function DiscussionsFeedPage() {
                           </p>
                         </div>
                       </div>
+                      {post.author.id !== user?.id && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            post.author.isFollowing
+                              ? unfollowMutation.mutate(post.author.id)
+                              : followMutation.mutate(post.author.id)
+                          }
+                          disabled={followMutation.isPending || unfollowMutation.isPending}
+                        >
+                          {post.author.isFollowing ? "Unfollow" : "Follow"}
+                        </Button>
+                      )}
                     </div>
                   </CardHeader>
                   <CardContent>
@@ -115,18 +161,14 @@ export default function DiscussionsFeedPage() {
                     {/* Display media if present */}
                     {post.mediaUrl && (
                       <div className="mt-4 rounded-lg overflow-hidden">
-                        {post.mediaType === 'image' ? (
+                        {post.mediaType === "image" ? (
                           <img
                             src={post.mediaUrl}
                             alt="Post media"
                             className="w-full h-auto max-h-96 object-cover"
                           />
-                        ) : post.mediaType === 'video' ? (
-                          <video
-                            src={post.mediaUrl}
-                            controls
-                            className="w-full max-h-96"
-                          />
+                        ) : post.mediaType === "video" ? (
+                          <video src={post.mediaUrl} controls className="w-full max-h-96" />
                         ) : null}
                       </div>
                     )}

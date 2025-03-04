@@ -1,0 +1,123 @@
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useState } from "react";
+import { format } from "date-fns";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { UserAvatar } from "@/components/ui/user-avatar";
+import { Button } from "@/components/ui/button";
+import { Bell, MessageCircle } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Notification, Message } from "@shared/schema";
+
+type NotificationWithUser = Notification & {
+  fromUser: {
+    username: string;
+  };
+};
+
+type MessageWithUser = Message & {
+  sender: {
+    username: string;
+  };
+  receiver: {
+    username: string;
+  };
+};
+
+export function NotificationsDialog() {
+  const [open, setOpen] = useState(false);
+
+  const { data: notifications } = useQuery<NotificationWithUser[]>({
+    queryKey: ["/api/notifications"],
+    queryFn: async () => {
+      const res = await fetch("/api/notifications");
+      if (!res.ok) throw new Error("Failed to fetch notifications");
+      return res.json();
+    },
+  });
+
+  const { data: unreadCount } = useQuery<{ count: number }>({
+    queryKey: ["/api/messages/unread/count"],
+    queryFn: async () => {
+      const res = await fetch("/api/messages/unread/count");
+      if (!res.ok) throw new Error("Failed to fetch unread count");
+      return res.json();
+    },
+  });
+
+  const markAsReadMutation = useMutation({
+    mutationFn: async (notificationId: number) => {
+      const res = await apiRequest("POST", `/api/notifications/${notificationId}/read`);
+      if (!res.ok) throw new Error("Failed to mark as read");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
+    },
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="ghost" size="icon" className="relative">
+          <Bell className="h-5 w-5" />
+          {(notifications?.some(n => !n.read) || unreadCount?.count) && (
+            <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-500 text-[10px] font-medium text-white flex items-center justify-center">
+              {(notifications?.filter(n => !n.read).length || 0) + (unreadCount?.count || 0)}
+            </span>
+          )}
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>Notifications</DialogTitle>
+        </DialogHeader>
+        <Tabs defaultValue="notifications" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="notifications">Notifications</TabsTrigger>
+            <TabsTrigger value="messages">Messages</TabsTrigger>
+          </TabsList>
+          <TabsContent value="notifications" className="mt-4 space-y-4">
+            {notifications?.map((notification) => (
+              <div
+                key={notification.id}
+                className={`flex items-start gap-3 p-3 rounded-lg ${
+                  notification.read ? "bg-muted/50" : "bg-muted"
+                }`}
+                onClick={() => {
+                  if (!notification.read) {
+                    markAsReadMutation.mutate(notification.id);
+                  }
+                }}
+              >
+                <UserAvatar user={{ username: notification.fromUser.username }} size="sm" />
+                <div className="flex-1">
+                  <p className="text-sm">
+                    <span className="font-medium">{notification.fromUser.username}</span>{" "}
+                    {notification.type === "new_follower"
+                      ? "started following you"
+                      : "sent you a message"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {format(new Date(notification.createdAt), "PPp")}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </TabsContent>
+          <TabsContent value="messages" className="mt-4">
+            {/* Messages tab content will be implemented separately */}
+            <p className="text-center text-muted-foreground">
+              Messages feature coming soon
+            </p>
+          </TabsContent>
+        </Tabs>
+      </DialogContent>
+    </Dialog>
+  );
+}
