@@ -8,10 +8,8 @@ export function Navbar() {
   const { logoutMutation } = useAuth();
 
   const links = [
-    { href: "/", icon: Coffee, label: "Home" },
-    { href: "/discussions", icon: MessageSquare, label: "Discussions" },
-    { href: "/news", icon: Newspaper, label: "News" },
-    { href: "/entertainment", icon: SmilePlus, label: "Entertainment" },
+    { href: "/feed/media", icon: Newspaper, label: "Media Feed" },
+    { href: "/feed/discussions", icon: MessageSquare, label: "Discussions Feed" },
     { href: "/profile", icon: UserCircle, label: "Profile" },
   ];
 
