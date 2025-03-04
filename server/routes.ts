@@ -121,11 +121,17 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
         const comments = await storage.getComments(post.id);
         const commentsWithAuthors = await Promise.all(comments.map(async (comment) => {
           const commentAuthor = await storage.getUser(comment.authorId);
+          const likes = await storage.getCommentLikes(comment.id);
+          const isLiked = req.user ? await storage.getUserCommentLike(req.user.id, comment.id) : false;
+
           return {
             ...comment,
             author: {
-              username: commentAuthor?.username || 'Unknown'
-            }
+              username: commentAuthor?.username || 'Unknown',
+              role: commentAuthor?.role || 'user'
+            },
+            likes,
+            isLiked
           };
         }));
 
