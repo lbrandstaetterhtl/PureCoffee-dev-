@@ -41,6 +41,7 @@ export default function ChatPage() {
   const [location] = useLocation();
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Fetch both followers and following
   const { data: following } = useQuery<User[]>({
@@ -76,11 +77,6 @@ export default function ChatPage() {
       return res.json();
     },
     enabled: !!selectedUserId,
-    onSuccess: () => {
-      // Invalidate notifications when messages are loaded
-      queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/messages/unread/count"] });
-    },
   });
 
   const sendMessageMutation = useMutation({
@@ -117,6 +113,13 @@ export default function ChatPage() {
     });
   };
 
+  // Scroll to bottom when new messages arrive
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages]);
+
   // Setup WebSocket connection
   useEffect(() => {
     const connectWebSocket = () => {
@@ -124,6 +127,11 @@ export default function ChatPage() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const host = window.location.host.split('?')[0]; // Remove any query parameters
         const wsUrl = `${protocol}//${encodeURIComponent(host)}/ws`;
+
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+          return; // Already connected
+        }
+
         const ws = new WebSocket(wsUrl);
         wsRef.current = ws;
 
@@ -135,7 +143,6 @@ export default function ChatPage() {
           try {
             const data = JSON.parse(event.data);
             if (data.type === 'new_message') {
-              // Invalidate queries to refresh messages
               queryClient.invalidateQueries({ queryKey: ["/api/messages", selectedUserId] });
               queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
               queryClient.invalidateQueries({ queryKey: ["/api/messages/unread/count"] });
@@ -149,14 +156,12 @@ export default function ChatPage() {
           console.log('WebSocket disconnected, attempting to reconnect...');
           wsRef.current = null;
 
-          // Clear any existing reconnection timeout
           if (reconnectTimeoutRef.current) {
             clearTimeout(reconnectTimeoutRef.current);
           }
 
-          // Attempt to reconnect after a delay
           reconnectTimeoutRef.current = setTimeout(() => {
-            if (!wsRef.current) {
+            if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
               connectWebSocket();
             }
           }, 3000);
@@ -170,7 +175,6 @@ export default function ChatPage() {
         };
       } catch (error) {
         console.error('Error creating WebSocket connection:', error);
-        // Attempt to reconnect after error
         setTimeout(connectWebSocket, 3000);
       }
     };
@@ -186,7 +190,7 @@ export default function ChatPage() {
         wsRef.current = null;
       }
     };
-  }, [selectedUserId, queryClient]);
+  }, [selectedUserId]);
 
   // Clear message notifications when entering chat page
   useEffect(() => {
@@ -208,7 +212,7 @@ export default function ChatPage() {
                 <CardTitle>Mutual Followers</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {mutualFollowers?.length === 0 && (
+                {!mutualFollowers?.length && (
                   <Alert>
                     <Info className="h-4 w-4" />
                     <AlertDescription>
@@ -280,6 +284,7 @@ export default function ChatPage() {
                         : "Select a user to view messages"}
                     </p>
                   )}
+                  <div ref={messagesEndRef} />
                 </div>
 
                 {/* Message Input */}
