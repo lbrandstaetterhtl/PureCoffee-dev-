@@ -74,6 +74,8 @@ export interface IStorage {
   }): Promise<Message>;
   getMessages(userId1: number, userId2: number): Promise<Message[]>;
   getUnreadMessageCount(userId: number): Promise<number>;
+  getUserPosts(userId: number): Promise<Post[]>;
+  createRepost(originalPostId: number, userId: number): Promise<Post>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -359,6 +361,37 @@ export class DatabaseStorage implements IStorage {
       ));
 
     return result[0].count;
+  }
+
+  async getUserPosts(userId: number): Promise<Post[]> {
+    const userPosts = await db
+      .select()
+      .from(posts)
+      .where(eq(posts.authorId, userId))
+      .orderBy(desc(posts.createdAt));
+    return userPosts;
+  }
+
+  async createRepost(originalPostId: number, userId: number): Promise<Post> {
+    const originalPost = await this.getPost(originalPostId);
+    if (!originalPost) {
+      throw new Error("Original post not found");
+    }
+
+    const [repost] = await db
+      .insert(posts)
+      .values({
+        title: `Repost: ${originalPost.title}`,
+        content: originalPost.content,
+        authorId: userId,
+        category: originalPost.category,
+        originalPostId: originalPost.id,
+        mediaUrl: originalPost.mediaUrl,
+        mediaType: originalPost.mediaType,
+      })
+      .returning();
+
+    return repost;
   }
 }
 

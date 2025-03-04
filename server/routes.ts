@@ -418,6 +418,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Add these new routes after the existing ones but before the httpServer creation
+
+  // User profile routes
+  app.get("/api/users/:username", isAuthenticated, async (req, res) => {
+    try {
+      const user = await storage.getUserByUsername(req.params.username);
+      if (!user) {
+        return res.status(404).send("User not found");
+      }
+
+      const followers = await storage.getFollowers(user.id);
+      const following = await storage.getFollowing(user.id);
+      const isFollowing = req.user ? await storage.isFollowing(req.user.id, user.id) : false;
+
+      res.json({
+        ...user,
+        followers: followers.length,
+        following: following.length,
+        isFollowing,
+      });
+    } catch (error) {
+      console.error('Error getting user profile:', error);
+      res.status(500).send("Failed to get user profile");
+    }
+  });
+
+  app.get("/api/users/:username/posts", isAuthenticated, async (req, res) => {
+    try {
+      const user = await storage.getUserByUsername(req.params.username);
+      if (!user) {
+        return res.status(404).send("User not found");
+      }
+
+      const posts = await storage.getUserPosts(user.id);
+      res.json(posts);
+    } catch (error) {
+      console.error('Error getting user posts:', error);
+      res.status(500).send("Failed to get user posts");
+    }
+  });
+
+  // Repost functionality
+  app.post("/api/posts/:id/repost", isAuthenticated, async (req, res) => {
+    try {
+      const originalPost = await storage.getPost(parseInt(req.params.id));
+      if (!originalPost) {
+        return res.status(404).send("Post not found");
+      }
+
+      const repost = await storage.createPost({
+        title: `Repost: ${originalPost.title}`,
+        content: originalPost.content,
+        authorId: req.user!.id,
+        category: originalPost.category,
+        originalPostId: originalPost.id,
+        mediaUrl: originalPost.mediaUrl,
+        mediaType: originalPost.mediaType,
+      });
+
+      res.status(201).json(repost);
+    } catch (error) {
+      console.error('Error creating repost:', error);
+      res.status(500).send("Failed to create repost");
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
