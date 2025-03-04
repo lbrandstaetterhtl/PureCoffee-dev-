@@ -6,13 +6,16 @@ import path from "path";
 
 const app = express();
 app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+app.use(express.urlencoded({ extended: true }));
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
+
+// Serve uploads directory statically
+app.use('/uploads', express.static(uploadsDir));
 
 // Logging middleware
 app.use((req, res, next) => {
@@ -44,9 +47,6 @@ app.use((req, res, next) => {
 
   next();
 });
-
-// Serve uploads directory statically
-app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
 (async () => {
   try {

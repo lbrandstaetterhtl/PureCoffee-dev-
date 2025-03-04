@@ -229,6 +229,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Updated profile route with file upload handling
   app.patch("/api/profile", isAuthenticated, upload.single("profileImage"), async (req, res) => {
     try {
+      console.log("Profile update request:", { body: req.body, file: req.file });
+
       const updateData: Partial<{ username: string; email: string; profileImageUrl: string | null }> = {};
 
       if (req.body.username) {
@@ -248,9 +250,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       if (req.file) {
+        console.log("Received file:", req.file);
         updateData.profileImageUrl = `/uploads/${req.file.filename}`;
       }
 
+      console.log("Updating user profile with:", updateData);
       const updatedUser = await storage.updateUserProfile(req.user!.id, updateData);
       res.json(updatedUser);
     } catch (error) {
