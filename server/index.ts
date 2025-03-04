@@ -11,6 +11,15 @@ log("Starting server initialization...");
 // Basic middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Add this right after the basic middleware setup
+app.use((req, res, next) => {
+  if (req.path === '/') {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  }
+  next();
+});
+
 log("Basic middleware configured");
 
 // Create uploads directory if it doesn't exist
