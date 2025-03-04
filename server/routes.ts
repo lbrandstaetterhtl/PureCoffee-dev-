@@ -192,36 +192,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/posts", isAuthenticated, upload.single("media"), async (req, res) => {
     try {
+      console.log('Post creation request:', {
+        body: req.body,
+        file: req.file,
+        category: req.body.category
+      });
+
       const category = req.body.category;
+      const data = {
+        title: req.body.title,
+        content: req.body.content,
+        category: category
+      };
+
+      if (req.file) {
+        data.mediaUrl = `/uploads/${req.file.filename}`;
+        data.mediaType = req.file.mimetype.startsWith("image/") ? "image" : "video";
+      }
 
       // Validate based on category
       const schema = category === "discussion" ? insertDiscussionPostSchema : insertMediaPostSchema;
-      const result = schema.safeParse({
-        ...req.body,
-        mediaType: req.file?.mimetype.startsWith("image/") ? "image" : "video",
-      });
+      const result = schema.safeParse(data);
 
       if (!result.success) {
+        console.error('Validation error:', result.error);
         return res.status(400).json(result.error);
       }
 
-      let mediaUrl = null;
-      let mediaType = null;
-
-      if (req.file) {
-        mediaUrl = `/uploads/${req.file.filename}`;
-        mediaType = req.file.mimetype.startsWith("image/") ? "image" : "video";
-      }
-
       const post = await storage.createPost({
-        title: req.body.title,
-        content: req.body.content,
-        category: req.body.category,
+        ...data,
         authorId: req.user!.id,
-        mediaUrl,
-        mediaType,
       });
 
+      console.log('Post created successfully:', post);
       res.status(201).json(post);
     } catch (error) {
       console.error('Error creating post:', error);
