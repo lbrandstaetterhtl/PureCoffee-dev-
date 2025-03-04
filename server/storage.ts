@@ -1,8 +1,12 @@
 import { User, Post, Comment, Report, InsertUser, InsertDiscussionPost, InsertMediaPost } from "@shared/schema";
 import session from "express-session";
-import createMemoryStore from "memorystore";
+import { drizzle } from "drizzle-orm/neon-serverless";
+import { neon } from '@neondatabase/serverless';
+import { users, posts, comments, reports, postLikes, verificationTokens } from "@shared/schema";
+import { eq, and } from "drizzle-orm";
+import connectPg from "connect-pg-simple";
 
-const MemoryStore = createMemoryStore(session);
+const PostgresSessionStore = connectPg(session);
 
 export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
@@ -48,227 +52,148 @@ export interface IStorage {
   getPostReactions(postId: number): Promise<{ likes: number; dislikes: number }>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<number, User>;
-  private posts: Map<number, Post>;
-  private comments: Map<number, Comment>;
-  private reports: Map<number, Report>;
-  private postLikes: Map<string, { id: number; userId: number; postId: number; isLike: boolean; createdAt: Date }>;
+const sql = neon(process.env.DATABASE_URL!);
+const db = drizzle(sql);
+
+export class DatabaseStorage implements IStorage {
   public sessionStore: session.Store;
-  private currentIds: { [key: string]: number };
-  private verificationTokens: Map<string, {
-    token: string;
-    userId: number;
-    expiresAt: Date;
-  }>;
 
   constructor() {
-    this.users = new Map();
-    this.posts = new Map();
-    this.comments = new Map();
-    this.reports = new Map();
-    this.postLikes = new Map();
-    this.sessionStore = new MemoryStore({ checkPeriod: 86400000 });
-    this.currentIds = { users: 1, posts: 1, comments: 1, reports: 1, postLikes: 1 };
-    this.verificationTokens = new Map();
+    this.sessionStore = new PostgresSessionStore({
+      conObject: {
+        connectionString: process.env.DATABASE_URL,
+      },
+      createTableIfMissing: true,
+    });
   }
 
   async getUser(id: number): Promise<User | undefined> {
-    return this.users.get(id);
+    const result = await db.select().from(users).where(eq(users.id, id));
+    return result[0];
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+    const result = await db.select().from(users).where(eq(users.username, username));
+    return result[0];
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.email === email,
-    );
+    const result = await db.select().from(users).where(eq(users.email, email));
+    return result[0];
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const id = this.currentIds.users++;
-    const user: User = {
-      ...insertUser,
-      id,
-      karma: 5,
-      createdAt: new Date(),
-      emailVerified: false,
-    };
-    this.users.set(id, user);
-    return user;
+    const result = await db.insert(users).values(insertUser).returning();
+    return result[0];
   }
 
   async updateUserProfile(id: number, profile: Partial<{ username: string; email: string }>): Promise<User> {
-    const user = this.users.get(id);
-    if (!user) throw new Error("User not found");
-
-    const updated = { ...user, ...profile };
-    this.users.set(id, updated);
-    return updated;
+    const result = await db.update(users).set(profile).where(eq(users.id, id)).returning();
+    return result[0];
   }
 
   async updateUserPassword(id: number, password: string): Promise<User> {
-    const user = this.users.get(id);
-    if (!user) throw new Error("User not found");
-
-    const updated = { ...user, password };
-    this.users.set(id, updated);
-    return updated;
+    const result = await db.update(users).set({ password }).where(eq(users.id, id)).returning();
+    return result[0];
   }
 
   async updateUserKarma(id: number, karma: number): Promise<User> {
-    const user = this.users.get(id);
-    if (!user) throw new Error("User not found");
-    const updated = { ...user, karma };
-    this.users.set(id, updated);
-    return updated;
+    const result = await db.update(users).set({ karma }).where(eq(users.id, id)).returning();
+    return result[0];
   }
 
   async createPost(post: Omit<Post, "id" | "createdAt" | "karma">): Promise<Post> {
-    const id = this.currentIds.posts++;
-    const newPost: Post = {
-      ...post,
-      id,
-      karma: 0,
-      createdAt: new Date(),
-      mediaUrl: post.mediaUrl || null,
-      mediaType: post.mediaType || null,
-    };
-    this.posts.set(id, newPost);
-    return newPost;
+    const result = await db.insert(posts).values(post).returning();
+    return result[0];
   }
 
   async getPosts(category?: string): Promise<Post[]> {
-    const posts = Array.from(this.posts.values());
-    return category ? posts.filter(p => p.category === category) : posts;
+    if (category) {
+      return db.select().from(posts).where(eq(posts.category, category));
+    }
+    return db.select().from(posts);
   }
 
   async getPost(id: number): Promise<Post | undefined> {
-    return this.posts.get(id);
+    const result = await db.select().from(posts).where(eq(posts.id, id));
+    return result[0];
   }
 
   async updatePostKarma(id: number, karma: number): Promise<Post> {
-    const post = this.posts.get(id);
-    if (!post) throw new Error("Post not found");
-    const updated = { ...post, karma };
-    this.posts.set(id, updated);
-    return updated;
+    const result = await db.update(posts).set({ karma }).where(eq(posts.id, id)).returning();
+    return result[0];
   }
 
   async createComment(comment: Omit<Comment, "id" | "createdAt" | "karma">): Promise<Comment> {
-    const id = this.currentIds.comments++;
-    const newComment: Comment = {
-      ...comment,
-      id,
-      karma: 5,
-      createdAt: new Date(),
-    };
-    this.comments.set(id, newComment);
-    return newComment;
+    const result = await db.insert(comments).values(comment).returning();
+    return result[0];
   }
 
   async getComments(postId: number): Promise<Comment[]> {
-    return Array.from(this.comments.values()).filter(c => c.postId === postId);
+    return db.select().from(comments).where(eq(comments.postId, postId));
   }
 
   async updateCommentKarma(id: number, karma: number): Promise<Comment> {
-    const comment = this.comments.get(id);
-    if (!comment) throw new Error("Comment not found");
-    const updated = { ...comment, karma };
-    this.comments.set(id, updated);
-    return updated;
+    const result = await db.update(comments).set({ karma }).where(eq(comments.id, id)).returning();
+    return result[0];
   }
 
   async createReport(report: Omit<Report, "id" | "createdAt" | "status">): Promise<Report> {
-    const id = this.currentIds.reports++;
-    const newReport: Report = {
-      ...report,
-      id,
-      status: "pending",
-      createdAt: new Date(),
-    };
-    this.reports.set(id, newReport);
-    return newReport;
+    const result = await db.insert(reports).values(report).returning();
+    return result[0];
   }
 
   async getReports(): Promise<Report[]> {
-    return Array.from(this.reports.values());
+    return db.select().from(reports);
   }
 
   async updateReportStatus(id: number, status: string): Promise<Report> {
-    const report = this.reports.get(id);
-    if (!report) throw new Error("Report not found");
-    const updated = { ...report, status };
-    this.reports.set(id, updated);
-    return updated;
+    const result = await db.update(reports).set({ status }).where(eq(reports.id, id)).returning();
+    return result[0];
   }
 
-  async createVerificationToken(token: {
-    token: string;
-    userId: number;
-    expiresAt: Date;
-  }): Promise<void> {
-    this.verificationTokens.set(token.token, token);
+  async createVerificationToken(token: { token: string; userId: number; expiresAt: Date }): Promise<void> {
+    await db.insert(verificationTokens).values(token);
   }
 
   async getVerificationToken(token: string) {
-    return this.verificationTokens.get(token);
+    const result = await db.select().from(verificationTokens).where(eq(verificationTokens.token, token));
+    return result[0];
   }
 
   async deleteVerificationToken(token: string): Promise<void> {
-    this.verificationTokens.delete(token);
+    await db.delete(verificationTokens).where(eq(verificationTokens.token, token));
   }
 
   async verifyUserEmail(userId: number): Promise<void> {
-    const user = await this.getUser(userId);
-    if (!user) throw new Error("User not found");
-
-    const updatedUser = { ...user, emailVerified: true };
-    this.users.set(userId, updatedUser);
+    await db.update(users).set({ emailVerified: true }).where(eq(users.id, userId));
   }
-  async createPostLike(userId: number, postId: number, isLike: boolean): Promise<void> {
-    const key = `${userId}-${postId}`;
-    const id = this.currentIds.postLikes++;
-    this.postLikes.set(key, {
-      id,
-      userId,
-      postId,
-      isLike,
-      createdAt: new Date(),
-    });
 
-    // Update post karma based on like/dislike
-    const post = await this.getPost(postId);
-    if (post) {
-      await this.updatePostKarma(postId, post.karma + (isLike ? 1 : -1));
-    }
+  async createPostLike(userId: number, postId: number, isLike: boolean): Promise<void> {
+    await db.insert(postLikes).values({ userId, postId, isLike });
   }
 
   async removePostReaction(userId: number, postId: number): Promise<void> {
-    const key = `${userId}-${postId}`;
-    const reaction = this.postLikes.get(key);
-    if (reaction) {
-      // Reverse the previous karma effect
-      const post = await this.getPost(postId);
-      if (post) {
-        await this.updatePostKarma(postId, post.karma + (reaction.isLike ? -1 : 1));
-      }
-      this.postLikes.delete(key);
-    }
+    await db.delete(postLikes).where(
+      and(
+        eq(postLikes.userId, userId),
+        eq(postLikes.postId, postId)
+      )
+    );
   }
 
   async getUserPostReaction(userId: number, postId: number): Promise<{ isLike: boolean } | null> {
-    const key = `${userId}-${postId}`;
-    const reaction = this.postLikes.get(key);
-    return reaction ? { isLike: reaction.isLike } : null;
+    const result = await db.select().from(postLikes).where(
+      and(
+        eq(postLikes.userId, userId),
+        eq(postLikes.postId, postId)
+      )
+    );
+    return result[0] ? { isLike: result[0].isLike } : null;
   }
 
   async getPostReactions(postId: number): Promise<{ likes: number; dislikes: number }> {
-    const reactions = Array.from(this.postLikes.values()).filter(like => like.postId === postId);
+    const reactions = await db.select().from(postLikes).where(eq(postLikes.postId, postId));
     return {
       likes: reactions.filter(r => r.isLike).length,
       dislikes: reactions.filter(r => !r.isLike).length
@@ -276,4 +201,4 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
