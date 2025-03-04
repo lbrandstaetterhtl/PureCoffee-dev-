@@ -139,6 +139,7 @@ export class DatabaseStorage implements IStorage {
 
       console.log('Updating user profile with data:', updateData);
 
+      // Perform the update with the correct SQL field names
       const [user] = await db
         .update(users)
         .set(updateData)

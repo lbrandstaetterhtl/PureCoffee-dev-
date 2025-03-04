@@ -16,7 +16,23 @@ const connections = new Map<number, WebSocket>();
 // Update the isAdmin middleware at the top of the file
 const isAdmin = (req: any, res: any, next: any) => {
   if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
-  if (req.user.role !== 'admin' && req.user.role !== 'owner') return res.status(403).send("Forbidden");
+
+  // Check both role and is_admin flag
+  if (!req.user.is_admin || (req.user.role !== 'admin' && req.user.role !== 'owner')) {
+    console.log('Access denied:', {
+      userId: req.user.id,
+      username: req.user.username,
+      role: req.user.role,
+      isAdmin: req.user.is_admin
+    });
+    return res.status(403).send("Forbidden");
+  }
+
+  console.log('Admin access granted:', {
+    userId: req.user.id,
+    username: req.user.username,
+    role: req.user.role
+  });
   next();
 };
 
