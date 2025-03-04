@@ -235,10 +235,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(report);
   });
 
-  // Add the following route handler after the other profile routes
-  app.patch("/api/profile", isAuthenticated, upload.single("profilePicture"), async (req, res) => {
+  // Updated profile route
+  app.patch("/api/profile", isAuthenticated, async (req, res) => {
     try {
-      const updateData: Partial<{ username: string; email: string; profilePictureUrl: string }> = {};
+      const updateData: Partial<{ username: string; email: string }> = {};
 
       if (req.body.username) {
         updateData.username = req.body.username;
@@ -246,10 +246,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (req.body.email) {
         updateData.email = req.body.email;
-      }
-
-      if (req.file) {
-        updateData.profilePictureUrl = `/uploads/${req.file.filename}`;
       }
 
       const updatedUser = await storage.updateUserProfile(req.user!.id, updateData);

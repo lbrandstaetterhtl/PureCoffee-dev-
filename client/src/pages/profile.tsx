@@ -23,13 +23,13 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Loader2, Upload } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 export default function ProfilePage() {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const profileForm = useForm<UpdateProfile & { profilePicture?: FileList }>({
+  const profileForm = useForm<UpdateProfile>({
     resolver: zodResolver(updateProfileSchema),
     defaultValues: {
       username: user?.username || "",
@@ -47,27 +47,8 @@ export default function ProfilePage() {
   });
 
   const updateProfileMutation = useMutation({
-    mutationFn: async (data: UpdateProfile & { profilePicture?: FileList }) => {
-      const formData = new FormData();
-
-      if (data.username) {
-        formData.append("username", data.username);
-      }
-
-      if (data.email) {
-        formData.append("email", data.email);
-      }
-
-      if (data.profilePicture?.[0]) {
-        formData.append("profilePicture", data.profilePicture[0]);
-      }
-
-      const res = await fetch("/api/profile", {
-        method: "PATCH",
-        body: formData,
-      });
-
-      if (!res.ok) throw new Error(await res.text());
+    mutationFn: async (data: UpdateProfile) => {
+      const res = await apiRequest("PATCH", "/api/profile", data);
       return res.json();
     },
     onSuccess: () => {
@@ -113,13 +94,7 @@ export default function ProfilePage() {
       <main className="container mx-auto px-4 pt-24">
         <div className="max-w-2xl mx-auto space-y-8">
           <div className="flex items-center gap-4">
-            <UserAvatar 
-              user={{
-                username: user?.username || '',
-                profilePictureUrl: user?.profilePictureUrl
-              }} 
-              size="lg" 
-            />
+            <UserAvatar user={{ username: user?.username || '' }} size="lg" />
             <h1 className="text-4xl font-bold">Profile Settings</h1>
           </div>
 
@@ -133,28 +108,6 @@ export default function ProfilePage() {
                   onSubmit={profileForm.handleSubmit((data) => updateProfileMutation.mutate(data))}
                   className="space-y-4"
                 >
-                  <FormField
-                    control={profileForm.control}
-                    name="profilePicture"
-                    render={({ field: { onChange, value, ...field } }) => (
-                      <FormItem>
-                        <FormLabel>Profile Picture</FormLabel>
-                        <FormControl>
-                          <div className="flex items-center gap-4">
-                            <Input
-                              type="file"
-                              accept="image/*"
-                              onChange={(e) => onChange(e.target.files)}
-                              className="flex-1"
-                              {...field}
-                            />
-                            <Upload className="h-4 w-4 text-muted-foreground" />
-                          </div>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
                   <FormField
                     control={profileForm.control}
                     name="username"
