@@ -53,8 +53,8 @@ export default function AuthPage() {
             <h2 className="text-lg font-semibold text-center">Why Join Pure Coffee?</h2>
             <div className="grid grid-cols-2 gap-4">
               <div className="p-3 bg-primary/5 rounded-lg">
-                <Coffee className="h-5 w-5 text-primary mb-2" />
-                <h3 className="text-sm font-medium">Quality Coffee</h3>
+                <Newspaper className="h-5 w-5 text-primary mb-2" />
+                <h3 className="text-sm font-medium">Quality News</h3>
               </div>
               <div className="p-3 bg-primary/5 rounded-lg">
                 <MessageSquare className="h-5 w-5 text-primary mb-2" />
@@ -105,15 +105,15 @@ export default function AuthPage() {
           </div>
 
           <p className="text-xl text-muted-foreground mb-8">
-            Join our vibrant community where coffee enthusiasts connect, share, and discuss current events, politics, and entertainment.
+            Join our vibrant community where informed citizens connect, share, and discuss current events, politics, and entertainment.
           </p>
 
           <div className="space-y-6">
             <div className="flex items-start space-x-3">
-              <Coffee className="h-6 w-6 text-primary mt-1" />
+              <Newspaper className="h-6 w-6 text-primary mt-1" />
               <div>
-                <h3 className="font-semibold">Quality Coffee Coverage</h3>
-                <p className="text-muted-foreground">Access the latest coffee news and in-depth analysis from reliable sources.</p>
+                <h3 className="font-semibold">Quality News Coverage</h3>
+                <p className="text-muted-foreground">Access fact-checked news and in-depth analysis from reliable sources on politics and current events.</p>
               </div>
             </div>
 
@@ -121,7 +121,7 @@ export default function AuthPage() {
               <MessageSquare className="h-6 w-6 text-primary mt-1" />
               <div>
                 <h3 className="font-semibold">Meaningful Discussions</h3>
-                <p className="text-muted-foreground">Engage in civil discourse about important coffee and social issues that matter.</p>
+                <p className="text-muted-foreground">Engage in civil discourse about important political and social issues that matter.</p>
               </div>
             </div>
 
@@ -137,7 +137,7 @@ export default function AuthPage() {
               <Users className="h-6 w-6 text-primary mt-1" />
               <div>
                 <h3 className="font-semibold">Community Impact</h3>
-                <p className="text-muted-foreground">Connect with others who share your interests in coffee, news, and entertainment.</p>
+                <p className="text-muted-foreground">Connect with others who share your interests in politics, news, and entertainment.</p>
               </div>
             </div>
 
