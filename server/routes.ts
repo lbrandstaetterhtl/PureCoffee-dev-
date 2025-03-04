@@ -474,12 +474,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }));
       }
 
-      // Create notification for new message
-      await storage.createNotification({
-        userId: receiverId,
-        type: "new_message",
-        fromUserId: senderId,
-      });
+      // Only create notification if one doesn't exist for this sender
+      const existingNotification = await storage.getUnreadNotificationByTypeAndUser(receiverId, "new_message", senderId);
+      if (!existingNotification) {
+        // Create notification for new message
+        await storage.createNotification({
+          userId: receiverId,
+          type: "new_message",
+          fromUserId: senderId,
+        });
+      }
 
       res.status(201).json(message);
     } catch (error) {

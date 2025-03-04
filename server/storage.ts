@@ -75,6 +75,7 @@ export interface IStorage {
   getMessages(userId1: number, userId2: number): Promise<Message[]>;
   getUnreadMessageCount(userId: number): Promise<number>;
   markMessageAsRead(messageId: number): Promise<void>;
+  getUnreadNotificationByTypeAndUser(userId: number, type: string, fromUserId: number): Promise<Notification | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -396,6 +397,20 @@ export class DatabaseStorage implements IStorage {
       .update(messagesTable)
       .set({ read: true })
       .where(eq(messagesTable.id, messageId));
+  }
+  async getUnreadNotificationByTypeAndUser(userId: number, type: string, fromUserId: number): Promise<Notification | undefined> {
+    const [notification] = await db
+      .select()
+      .from(notificationsTable)
+      .where(
+        and(
+          eq(notificationsTable.userId, userId),
+          eq(notificationsTable.type, type),
+          eq(notificationsTable.fromUserId, fromUserId),
+          eq(notificationsTable.read, false)
+        )
+      );
+    return notification;
   }
 }
 
