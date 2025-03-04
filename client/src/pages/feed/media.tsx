@@ -262,6 +262,7 @@ export default function MediaFeedPage() {
                       {/* Add Comment Form */}
                       <div className="flex gap-2">
                         <Input
+                          data-post-id={post.id}
                           placeholder="Write a comment..."
                           onKeyPress={(e) => {
                             if (e.key === 'Enter' && (e.target as HTMLInputElement).value.trim()) {
