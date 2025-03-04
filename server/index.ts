@@ -53,8 +53,12 @@ log("Request logging middleware configured");
     // Get port from environment variable
     const port = process.env.PORT || 3000;
 
-    // Listen on all network interfaces
-    server.listen(port, '0.0.0.0', () => {
+    // Listen on all network interfaces with proper options
+    server.listen({
+      port,
+      host: "0.0.0.0",
+      reusePort: true
+    }, () => {
       log(`Server running on port ${port}`);
     });
   } catch (error) {

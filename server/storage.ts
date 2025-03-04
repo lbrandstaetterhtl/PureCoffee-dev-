@@ -28,6 +28,8 @@ const db = drizzle(queryClient);
 
 export class DatabaseStorage implements IStorage {
   public sessionStore: session.Store;
+  private isConnected: boolean = false;
+  private connectionRetryTimeout: NodeJS.Timeout | null = null;
 
   constructor() {
     this.sessionStore = new PostgresSessionStore({
@@ -47,15 +49,29 @@ export class DatabaseStorage implements IStorage {
   private async testConnection() {
     try {
       await db.select().from(users).limit(1);
+      this.isConnected = true;
       log("Database connection test successful");
+      if (this.connectionRetryTimeout) {
+        clearTimeout(this.connectionRetryTimeout);
+        this.connectionRetryTimeout = null;
+      }
     } catch (error) {
       console.error("Database connection test failed:", error);
-      // Don't exit process, allow for retry
+      this.isConnected = false;
+      // Retry connection after 5 seconds
+      this.connectionRetryTimeout = setTimeout(() => this.testConnection(), 5000);
+    }
+  }
+
+  private async ensureConnection() {
+    if (!this.isConnected) {
+      throw new Error("Database connection not available");
     }
   }
 
   async getUser(id: number): Promise<User | undefined> {
     try {
+      await this.ensureConnection();
       const result = await db.select().from(users).where(eq(users.id, id));
       return result[0];
     } catch (error) {
@@ -66,6 +82,7 @@ export class DatabaseStorage implements IStorage {
 
   async getUserByUsername(username: string): Promise<User | undefined> {
     try {
+      await this.ensureConnection();
       const result = await db.select().from(users).where(eq(users.username, username));
       return result[0];
     } catch (error) {
@@ -76,6 +93,7 @@ export class DatabaseStorage implements IStorage {
 
   async getUserByEmail(email: string): Promise<User | undefined> {
     try {
+      await this.ensureConnection();
       const result = await db.select().from(users).where(eq(users.email, email));
       return result[0];
     } catch (error) {
@@ -86,6 +104,7 @@ export class DatabaseStorage implements IStorage {
 
   async createUser(insertUser: InsertUser): Promise<User> {
     try {
+      await this.ensureConnection();
       const result = await db.insert(users).values(insertUser).returning();
       return result[0];
     } catch (error) {
@@ -96,6 +115,7 @@ export class DatabaseStorage implements IStorage {
 
   async updateUserProfile(id: number, profile: Partial<{ username: string; email: string }>): Promise<User> {
     try {
+      await this.ensureConnection();
       const result = await db.update(users).set(profile).where(eq(users.id, id)).returning();
       return result[0];
     } catch (error) {
@@ -106,6 +126,7 @@ export class DatabaseStorage implements IStorage {
 
   async updateUserPassword(id: number, password: string): Promise<User> {
     try {
+      await this.ensureConnection();
       const result = await db.update(users).set({ password }).where(eq(users.id, id)).returning();
       return result[0];
     } catch (error) {
@@ -116,6 +137,7 @@ export class DatabaseStorage implements IStorage {
 
   async updateUserKarma(id: number, karma: number): Promise<User> {
     try {
+      await this.ensureConnection();
       const result = await db.update(users).set({ karma }).where(eq(users.id, id)).returning();
       return result[0];
     } catch (error) {
@@ -126,6 +148,7 @@ export class DatabaseStorage implements IStorage {
 
   async createPost(post: Omit<Post, "id" | "createdAt" | "karma">): Promise<Post> {
     try {
+      await this.ensureConnection();
       const result = await db.insert(posts).values(post).returning();
       return result[0];
     } catch (error) {
@@ -136,6 +159,7 @@ export class DatabaseStorage implements IStorage {
 
   async getPosts(category?: string): Promise<Post[]> {
     try {
+      await this.ensureConnection();
       if (category) {
         return db.select().from(posts).where(eq(posts.category, category));
       }
@@ -148,6 +172,7 @@ export class DatabaseStorage implements IStorage {
 
   async getPost(id: number): Promise<Post | undefined> {
     try {
+      await this.ensureConnection();
       const result = await db.select().from(posts).where(eq(posts.id, id));
       return result[0];
     } catch (error) {
@@ -158,6 +183,7 @@ export class DatabaseStorage implements IStorage {
 
   async updatePostKarma(id: number, karma: number): Promise<Post> {
     try {
+      await this.ensureConnection();
       const result = await db.update(posts).set({ karma }).where(eq(posts.id, id)).returning();
       return result[0];
     } catch (error) {
@@ -168,6 +194,7 @@ export class DatabaseStorage implements IStorage {
 
   async createComment(comment: Omit<Comment, "id" | "createdAt" | "karma">): Promise<Comment> {
     try {
+      await this.ensureConnection();
       const result = await db.insert(comments).values(comment).returning();
       return result[0];
     } catch (error) {
@@ -178,6 +205,7 @@ export class DatabaseStorage implements IStorage {
 
   async getComments(postId: number): Promise<Comment[]> {
     try {
+      await this.ensureConnection();
       return db.select().from(comments).where(eq(comments.postId, postId));
     } catch (error) {
       console.error('Error getting comments:', error);
@@ -187,6 +215,7 @@ export class DatabaseStorage implements IStorage {
 
   async updateCommentKarma(id: number, karma: number): Promise<Comment> {
     try {
+      await this.ensureConnection();
       const result = await db.update(comments).set({ karma }).where(eq(comments.id, id)).returning();
       return result[0];
     } catch (error) {
@@ -197,6 +226,7 @@ export class DatabaseStorage implements IStorage {
 
   async createReport(report: Omit<Report, "id" | "createdAt" | "status">): Promise<Report> {
     try {
+      await this.ensureConnection();
       const result = await db.insert(reports).values(report).returning();
       return result[0];
     } catch (error) {
@@ -207,6 +237,7 @@ export class DatabaseStorage implements IStorage {
 
   async getReports(): Promise<Report[]> {
     try {
+      await this.ensureConnection();
       return db.select().from(reports);
     } catch (error) {
       console.error('Error getting reports:', error);
@@ -216,6 +247,7 @@ export class DatabaseStorage implements IStorage {
 
   async updateReportStatus(id: number, status: string): Promise<Report> {
     try {
+      await this.ensureConnection();
       const result = await db.update(reports).set({ status }).where(eq(reports.id, id)).returning();
       return result[0];
     } catch (error) {
@@ -226,6 +258,7 @@ export class DatabaseStorage implements IStorage {
 
   async createVerificationToken(token: { token: string; userId: number; expiresAt: Date }): Promise<void> {
     try {
+      await this.ensureConnection();
       await db.insert(verificationTokens).values(token);
     } catch (error) {
       console.error('Error creating verification token:', error);
@@ -235,6 +268,7 @@ export class DatabaseStorage implements IStorage {
 
   async getVerificationToken(token: string) {
     try {
+      await this.ensureConnection();
       const result = await db.select().from(verificationTokens).where(eq(verificationTokens.token, token));
       return result[0];
     } catch (error) {
@@ -245,6 +279,7 @@ export class DatabaseStorage implements IStorage {
 
   async deleteVerificationToken(token: string): Promise<void> {
     try {
+      await this.ensureConnection();
       await db.delete(verificationTokens).where(eq(verificationTokens.token, token));
     } catch (error) {
       console.error('Error deleting verification token:', error);
@@ -254,6 +289,7 @@ export class DatabaseStorage implements IStorage {
 
   async verifyUserEmail(userId: number): Promise<void> {
     try {
+      await this.ensureConnection();
       await db.update(users).set({ emailVerified: true }).where(eq(users.id, userId));
     } catch (error) {
       console.error('Error verifying user email:', error);
@@ -263,6 +299,7 @@ export class DatabaseStorage implements IStorage {
 
   async createPostLike(userId: number, postId: number, isLike: boolean): Promise<void> {
     try {
+      await this.ensureConnection();
       await db.insert(postLikes).values({ userId, postId, isLike });
     } catch (error) {
       console.error('Error creating post like:', error);
@@ -272,6 +309,7 @@ export class DatabaseStorage implements IStorage {
 
   async removePostReaction(userId: number, postId: number): Promise<void> {
     try {
+      await this.ensureConnection();
       await db.delete(postLikes).where(
         and(
           eq(postLikes.userId, userId),
@@ -286,6 +324,7 @@ export class DatabaseStorage implements IStorage {
 
   async getUserPostReaction(userId: number, postId: number): Promise<{ isLike: boolean } | null> {
     try {
+      await this.ensureConnection();
       const result = await db.select().from(postLikes).where(
         and(
           eq(postLikes.userId, userId),
@@ -301,6 +340,7 @@ export class DatabaseStorage implements IStorage {
 
   async getPostReactions(postId: number): Promise<{ likes: number; dislikes: number }> {
     try {
+      await this.ensureConnection();
       const reactions = await db.select().from(postLikes).where(eq(postLikes.postId, postId));
       return {
         likes: reactions.filter(r => r.isLike).length,
