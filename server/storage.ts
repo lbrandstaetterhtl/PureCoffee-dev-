@@ -1,4 +1,4 @@
-import { User, Post, Comment, Report, InsertUser, InsertDiscussionPost, InsertMediaPost, Notification, Message, followers, notifications, messages, verificationTokens } from "@shared/schema";
+import { User, Post, Comment, Report, InsertUser, InsertMediaPost, Notification, Message, followers, notifications, messages, verificationTokens } from "@shared/schema";
 import session from "express-session";
 import { db } from "./db";
 import { eq, and, or, desc, asc, sql } from "drizzle-orm";
@@ -231,11 +231,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getReports(): Promise<Report[]> {
-    return db.select().from(reports);
+    return db.select().from(reports).orderBy(desc(reports.createdAt));
   }
 
   async updateReportStatus(id: number, status: string): Promise<Report> {
-    const [report] = await db.update(reports).set({ status }).where(eq(reports.id, id)).returning();
+    const [report] = await db.update(reports)
+      .set({ status })
+      .where(eq(reports.id, id))
+      .returning();
     return report;
   }
 

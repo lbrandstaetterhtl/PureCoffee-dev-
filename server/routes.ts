@@ -13,6 +13,13 @@ import session from 'express-session';
 // WebSocket connections store
 const connections = new Map<number, WebSocket>();
 
+// Define admin middleware at the top
+const isAdmin = (req: any, res: any, next: any) => {
+  if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
+  if (req.user.username !== 'pure-coffee') return res.status(403).send("Forbidden");
+  next();
+};
+
 // Configure multer for file uploads
 const upload = multer({
   storage: multer.diskStorage({
@@ -59,7 +66,7 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
   };
 
   // Setup WebSocket server
-  const wss = new WebSocketServer({ 
+  const wss = new WebSocketServer({
     server: httpServer,
     path: '/ws',
     verifyClient: (info, done) => {
@@ -265,12 +272,38 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
     res.status(201).json(report);
   });
 
-  app.patch("/api/reports/:id/status", isAuthenticated, async (req, res) => {
-    const { status } = req.body;
-    if (typeof status !== "string") return res.status(400).send("Invalid status");
+  app.patch("/api/admin/reports/:id", isAdmin, async (req, res) => {
+    try {
+      const reportId = parseInt(req.params.id);
+      const { status } = req.body;
 
-    const report = await storage.updateReportStatus(parseInt(req.params.id), status);
-    res.json(report);
+      if (!["pending", "resolved", "rejected"].includes(status)) {
+        return res.status(400).send("Invalid report status");
+      }
+
+      const updatedReport = await storage.updateReportStatus(reportId, status);
+
+      // If report is resolved, take action based on the reported content
+      if (status === "resolved") {
+        const report = await storage.getReport(reportId);
+        if (!report) return res.json(updatedReport);
+
+        if (report.postId) {
+          // Delete the post and all associated content
+          await storage.deleteComments(report.postId);
+          await storage.deletePostReactions(report.postId);
+          await storage.deletePost(report.postId);
+        } else if (report.commentId) {
+          // Delete the reported comment
+          await storage.deleteComment(report.commentId);
+        }
+      }
+
+      res.json(updatedReport);
+    } catch (error) {
+      console.error('Error updating report:', error);
+      res.status(500).send("Failed to update report status");
+    }
   });
 
   // Updated profile route
@@ -511,12 +544,6 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
   });
 
   // Admin Routes
-  const isAdmin = (req: any, res: any, next: any) => {
-    if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
-    if (req.user.username !== 'pure-coffee') return res.status(403).send("Forbidden");
-    next();
-  };
-
   app.get("/api/admin/users", isAdmin, async (req, res) => {
     try {
       const users = await storage.getUsers(); // Use storage interface
@@ -594,40 +621,6 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
     } catch (error) {
       console.error('Error updating user:', error);
       res.status(500).send("Failed to update user");
-    }
-  });
-
-  app.patch("/api/admin/reports/:id", isAdmin, async (req, res) => {
-    try {
-      const reportId = parseInt(req.params.id);
-      const { status } = req.body;
-
-      if (!["pending", "resolved", "rejected"].includes(status)) {
-        return res.status(400).send("Invalid report status");
-      }
-
-      const updatedReport = await storage.updateReportStatus(reportId, status);
-
-      // If report is resolved and it was about a post/comment, we might want to take action
-      if (status === "resolved") {
-        const report = await storage.getReport(reportId);
-        if (!report) return res.json(updatedReport);
-
-        if (report.postId) {
-          // Delete the post and all associated content
-          await storage.deleteComments(report.postId);
-          await storage.deletePostReactions(report.postId);
-          await storage.deletePost(report.postId);
-        } else if (report.commentId) {
-          // Delete the reported comment
-          await storage.deleteComment(report.commentId);
-        }
-      }
-
-      res.json(updatedReport);
-    } catch (error) {
-      console.error('Error updating report:', error);
-      res.status(500).send("Failed to update report status");
     }
   });
 
