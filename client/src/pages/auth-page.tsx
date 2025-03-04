@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Globe, MessageSquare, Newspaper, Users, TrendingUp } from "lucide-react";
+import { Globe, MessageSquare, Newspaper, Users, TrendingUp, Info } from "lucide-react";
 import { insertUserSchema, InsertUser, loginSchema, LoginCredentials } from "@shared/schema";
 import { useLocation } from "wouter";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -83,6 +83,24 @@ export default function AuthPage() {
               <div>
                 <h3 className="font-semibold">Community Impact</h3>
                 <p className="text-muted-foreground">Connect with others who share your interests in politics, news, and entertainment.</p>
+              </div>
+            </div>
+
+            {/* Latest Updates Section */}
+            <div className="mt-12 border-t pt-6">
+              <div className="flex items-center space-x-2 mb-4">
+                <Info className="h-5 w-5 text-primary" />
+                <h3 className="font-semibold">Latest Updates</h3>
+              </div>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>✨ New in Version 0.1:</p>
+                <ul className="list-disc list-inside space-y-1 ml-2">
+                  <li>Delete your own posts and comments</li>
+                  <li>Improved mobile responsiveness</li>
+                  <li>Enhanced comment system with post button</li>
+                  <li>Real-time notifications</li>
+                  <li>Follow your favorite contributors</li>
+                </ul>
               </div>
             </div>
           </div>
