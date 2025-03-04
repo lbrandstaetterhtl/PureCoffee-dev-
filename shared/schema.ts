@@ -100,8 +100,8 @@ export const insertMediaPostSchema = createInsertSchema(posts).pick({
   category: true,
 }).extend({
   category: z.enum(["news", "entertainment"]),
-  mediaUrl: z.string().optional(),
-  mediaType: z.enum(["image", "video"]).optional(),
+  mediaUrl: z.string().nullable().optional(),
+  mediaType: z.enum(["image", "video"]).nullable().optional(),
 });
 
 export const insertCommentSchema = createInsertSchema(comments).pick({

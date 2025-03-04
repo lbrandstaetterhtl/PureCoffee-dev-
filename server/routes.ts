@@ -198,31 +198,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
         category: req.body.category
       });
 
-      const category = req.body.category;
-      const data = {
+      // Validate based on category
+      const schema = req.body.category === "discussion" ? insertDiscussionPostSchema : insertMediaPostSchema;
+      const postData = {
         title: req.body.title,
         content: req.body.content,
-        category: category
+        category: req.body.category,
+        authorId: req.user!.id,
+        mediaUrl: null,
+        mediaType: null
       };
 
       if (req.file) {
-        data.mediaUrl = `/uploads/${req.file.filename}`;
-        data.mediaType = req.file.mimetype.startsWith("image/") ? "image" : "video";
+        postData.mediaUrl = `/uploads/${req.file.filename}`;
+        postData.mediaType = req.file.mimetype.startsWith("image/") ? "image" : "video";
       }
 
-      // Validate based on category
-      const schema = category === "discussion" ? insertDiscussionPostSchema : insertMediaPostSchema;
-      const result = schema.safeParse(data);
+      const result = schema.safeParse({
+        title: postData.title,
+        content: postData.content,
+        category: postData.category,
+        mediaUrl: postData.mediaUrl,
+        mediaType: postData.mediaType
+      });
 
       if (!result.success) {
         console.error('Validation error:', result.error);
         return res.status(400).json(result.error);
       }
 
-      const post = await storage.createPost({
-        ...data,
-        authorId: req.user!.id,
-      });
+      const post = await storage.createPost(postData);
 
       console.log('Post created successfully:', post);
       res.status(201).json(post);
