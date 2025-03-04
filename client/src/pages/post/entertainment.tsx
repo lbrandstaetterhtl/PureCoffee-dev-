@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
 import * as z from 'zod';
 import { useLocation } from "wouter";
+import { apiRequest } from "@/lib/queryClient";
 
 type FormData = z.infer<typeof insertMediaPostSchema>;
 
@@ -39,6 +40,7 @@ export default function CreateEntertainmentPage() {
       const mediaFile = form.getValues("mediaFile");
       if (mediaFile?.[0]) {
         formData.append("media", mediaFile[0]);
+        formData.append("mediaType", data.mediaType || (mediaFile[0].type.startsWith("image/") ? "image" : "video"));
       }
 
       const res = await fetch("/api/posts", {
@@ -46,7 +48,11 @@ export default function CreateEntertainmentPage() {
         body: formData,
       });
 
-      if (!res.ok) throw new Error("Failed to create post");
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(errorText || "Failed to create post");
+      }
+
       return res.json();
     },
     onSuccess: () => {
@@ -56,6 +62,13 @@ export default function CreateEntertainmentPage() {
         description: "Your entertainment post has been shared successfully.",
       });
       setLocation("/feed/media");
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
     },
   });
 
@@ -133,7 +146,7 @@ export default function CreateEntertainmentPage() {
                   />
                   <Button
                     type="submit"
-                    disabled={createPostMutation.isPending}
+                    disabled={createPostMutation.isPending || !form.formState.isValid}
                     className="w-full"
                   >
                     {createPostMutation.isPending ? (
