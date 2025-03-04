@@ -326,32 +326,32 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
         return res.status(400).send("Invalid report status");
       }
 
-      const updatedReport = await storage.updateReportStatus(reportId, status);
+      const report = await storage.getReport(reportId);
+      if (!report) {
+        return res.status(404).send("Report not found");
+      }
 
       // If report is resolved, take action based on the reported content
       if (status === "resolved") {
-        const report = await storage.getReport(reportId);
-        if (!report) return res.json(updatedReport);
-
         if (report.postId) {
           // Delete the post and all associated content
           await storage.deleteComments(report.postId);
           await storage.deletePostReactions(report.postId);
+          await storage.deleteReports(report.postId);
           await storage.deletePost(report.postId);
         } else if (report.commentId) {
           // Delete the reported comment
           await storage.deleteComment(report.commentId);
         } else if (report.discussionId) {
-          // Delete the reported discussion (which is a type of post)
-          const discussion = await storage.getPost(report.discussionId);
-          if (discussion && discussion.category === 'discussion') {
-            await storage.deleteComments(report.discussionId);
-            await storage.deletePostReactions(report.discussionId);
-            await storage.deletePost(report.discussionId);
-          }
+          // Delete the reported discussion and all its associated content
+          await storage.deleteComments(report.discussionId);
+          await storage.deletePostReactions(report.discussionId);
+          await storage.deleteReports(report.discussionId);
+          await storage.deletePost(report.discussionId);
         }
       }
 
+      const updatedReport = await storage.updateReportStatus(reportId, status);
       res.json(updatedReport);
     } catch (error) {
       console.error('Error updating report:', error);
