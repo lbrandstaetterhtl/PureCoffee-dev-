@@ -699,9 +699,9 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
         return res.status(404).send("User not found");
       }
 
-      // Don't allow modifying admin users
-      if (user.username === 'pure-coffee') {
-        return res.status(403).send("Cannot modify admin user");
+      // Don't allow modifying admin users unless you're pure-coffee
+      if (user.isAdmin && req.user?.username !== 'pure-coffee') {
+        return res.status(403).send("Only the super admin can modify admin users");
       }
 
       console.log('Admin update request:', {
