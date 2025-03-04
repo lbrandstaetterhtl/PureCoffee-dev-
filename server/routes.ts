@@ -16,19 +16,21 @@ const upload = multer({
   storage: multer.diskStorage({
     destination: "./uploads",
     filename: function (req, file, cb) {
-      cb(null, Date.now() + path.extname(file.originalname));
+      // Generate unique filename with timestamp
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
     }
   }),
   fileFilter: (req, file, cb) => {
-    const allowedTypes = ["image/jpeg", "image/png", "image/gif", "video/mp4", "video/webm"];
-    if (allowedTypes.includes(file.mimetype)) {
+    // Accept only image files
+    if (file.mimetype.startsWith('image/')) {
       cb(null, true);
     } else {
-      cb(new Error("Invalid file type"));
+      cb(new Error('Only image files are allowed'));
     }
   },
   limits: {
-    fileSize: 10 * 1024 * 1024 // 10MB limit
+    fileSize: 5 * 1024 * 1024 // 5MB limit
   }
 });
 
@@ -224,16 +226,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(report);
   });
 
-  // Updated profile route
+  // Updated profile route with file upload handling
   app.patch("/api/profile", isAuthenticated, upload.single("profileImage"), async (req, res) => {
     try {
       const updateData: Partial<{ username: string; email: string; profileImageUrl: string | null }> = {};
 
       if (req.body.username) {
+        const existingUser = await storage.getUserByUsername(req.body.username);
+        if (existingUser && existingUser.id !== req.user!.id) {
+          return res.status(400).send("Username already taken");
+        }
         updateData.username = req.body.username;
       }
 
       if (req.body.email) {
+        const existingEmail = await storage.getUserByEmail(req.body.email);
+        if (existingEmail && existingEmail.id !== req.user!.id) {
+          return res.status(400).send("Email already registered");
+        }
         updateData.email = req.body.email;
       }
 
