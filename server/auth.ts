@@ -121,8 +121,8 @@ export function setupAuth(app: Express) {
         emailVerified: false,
       });
 
-      // Try to send verification email only if SENDGRID_API_KEY is properly configured
-      if (process.env.SENDGRID_API_KEY?.startsWith('SG.')) {
+      // Only attempt email verification if SendGrid is properly configured
+      if (process.env.SENDGRID_API_KEY) {
         try {
           const verificationToken = await createVerificationToken(user.id);
           await sendVerificationEmail(user.email, user.username, verificationToken);
@@ -197,7 +197,6 @@ export function setupAuth(app: Express) {
     res.json(req.user);
   });
 
-  // Add profile update endpoints
   app.patch("/api/profile", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
 

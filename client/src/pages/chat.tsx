@@ -8,9 +8,10 @@ import { UserAvatar } from "@/components/ui/user-avatar";
 import { format } from "date-fns";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Loader2, Info } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useLocation } from "wouter";
 
 type Message = {
   id: number;
@@ -36,6 +37,8 @@ export default function ChatPage() {
   const { toast } = useToast();
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [messageInput, setMessageInput] = useState("");
+  const [location] = useLocation();
+  const wsRef = useRef<WebSocket | null>(null);
 
   // Fetch both followers and following
   const { data: following } = useQuery<User[]>({
@@ -106,6 +109,43 @@ export default function ChatPage() {
     });
   };
 
+  // Setup WebSocket connection
+  useEffect(() => {
+    const ws = new WebSocket(`${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`);
+    wsRef.current = ws;
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === 'new_message') {
+        // Invalidate queries to refresh messages
+        queryClient.invalidateQueries({ queryKey: ["/api/messages", selectedUserId] });
+      }
+    };
+
+    ws.onclose = () => {
+      // Attempt to reconnect after a delay
+      setTimeout(() => {
+        if (wsRef.current === ws) {
+          wsRef.current = null;
+        }
+      }, 1000);
+    };
+
+    return () => {
+      if (wsRef.current === ws) {
+        ws.close();
+        wsRef.current = null;
+      }
+    };
+  }, []);
+
+  // Clear message notifications when entering chat page
+  useEffect(() => {
+    if (location === '/chat') {
+      queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
+    }
+  }, [location]);
+
   return (
     <>
       <Navbar />
@@ -167,9 +207,7 @@ export default function ChatPage() {
                         }`}
                       >
                         <UserAvatar
-                          user={
-                            message.senderId === user?.id ? message.sender : message.receiver
-                          }
+                          user={message.senderId === user?.id ? message.sender : message.receiver}
                           size="sm"
                         />
                         <div
