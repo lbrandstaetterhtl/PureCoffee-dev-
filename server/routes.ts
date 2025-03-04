@@ -13,10 +13,10 @@ import session from 'express-session';
 // WebSocket connections store
 const connections = new Map<number, WebSocket>();
 
-// Define admin middleware at the top
+// Update the isAdmin middleware at the top of the file
 const isAdmin = (req: any, res: any, next: any) => {
   if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
-  if (req.user.username !== 'pure-coffee') return res.status(403).send("Forbidden");
+  if (!req.user.isAdmin) return res.status(403).send("Forbidden");
   next();
 };
 

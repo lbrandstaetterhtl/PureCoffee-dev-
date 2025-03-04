@@ -32,8 +32,8 @@ export default function AdminDashboard() {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Only allow pure-coffee user to access admin features
-  if (!user || user.username !== 'pure-coffee') {
+  // Allow any user with admin privileges to access admin features
+  if (!user || !user.isAdmin) {
     return <Redirect to="/" />;
   }
 
