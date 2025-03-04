@@ -582,9 +582,9 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
         return res.status(404).send("Post not found");
       }
 
-      // Allow admins, owners, and post authors to delete posts
-      if (post.authorId !== req.user!.id && req.user!.role !== 'admin' && req.user!.role !== 'owner') {
-        return res.status(403).send("You can only delete your own posts unless you are an admin or owner");
+      // Check if user owns the post
+      if (post.authorId !== req.user!.id) {
+        return res.status(403).send("You can only delete your own posts");
       }
 
       // Delete associated comments
