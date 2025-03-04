@@ -7,7 +7,6 @@ import path from "path";
 import express from "express";
 import { WebSocketServer, WebSocket } from 'ws';
 import { insertDiscussionPostSchema, insertMediaPostSchema, insertCommentSchema, insertReportSchema, messageSchema } from "@shared/schema";
-import Knex from 'knex'; // Added import for Knex.js
 import type { Knex } from 'knex'; // Added type import for Knex.js
 
 // Assuming 'users' table schema is defined elsewhere and available.
@@ -44,7 +43,7 @@ const upload = multer({
   }
 });
 
-export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Promise<Server> { // Added db parameter
+export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Promise<Server> {
   setupAuth(app);
 
   const isAuthenticated = (req: any, res: any, next: any) => {
@@ -482,7 +481,7 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
 
   app.get("/api/admin/users", isAdmin, async (req, res) => {
     try {
-      const users = await db.select().from('users').orderBy('createdAt', 'desc'); // Assuming users table
+      const users = await storage.getUsers(); // Use storage interface
       res.json(users);
     } catch (error) {
       console.error('Error fetching users:', error);
@@ -493,7 +492,27 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
   app.get("/api/admin/reports", isAdmin, async (req, res) => {
     try {
       const reports = await storage.getReports();
-      res.json(reports);
+      const enrichedReports = await Promise.all(reports.map(async (report) => {
+        const reporter = await storage.getUser(report.reporterId);
+        const reportedPost = report.postId ? await storage.getPost(report.postId) : null;
+        const reportedComment = report.commentId ? await storage.getComment(report.commentId) : null;
+
+        return {
+          ...report,
+          reporter: {
+            username: reporter?.username || 'Unknown',
+          },
+          content: reportedPost ? {
+            type: 'post',
+            title: reportedPost.title,
+            content: reportedPost.content
+          } : reportedComment ? {
+            type: 'comment',
+            content: reportedComment.content
+          } : null
+        };
+      }));
+      res.json(enrichedReports);
     } catch (error) {
       console.error('Error fetching reports:', error);
       res.status(500).send("Failed to fetch reports");
@@ -503,9 +522,13 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
   app.patch("/api/admin/users/:id", isAdmin, async (req, res) => {
     try {
       const userId = parseInt(req.params.id);
-      await db('users').update(req.body).where({ id: userId }); // Assuming users table
+      const user = await storage.getUser(userId);
 
-      const updatedUser = await db.select().from('users').where({ id: userId }).first(); // Assuming users table
+      if (!user) {
+        return res.status(404).send("User not found");
+      }
+
+      const updatedUser = await storage.updateUserProfile(userId, req.body);
       res.json(updatedUser);
     } catch (error) {
       console.error('Error updating user:', error);
@@ -516,7 +539,30 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
   app.patch("/api/admin/reports/:id", isAdmin, async (req, res) => {
     try {
       const reportId = parseInt(req.params.id);
-      const updatedReport = await storage.updateReportStatus(reportId, req.body.status);
+      const { status } = req.body;
+
+      if (!["pending", "resolved", "rejected"].includes(status)) {
+        return res.status(400).send("Invalid report status");
+      }
+
+      const updatedReport = await storage.updateReportStatus(reportId, status);
+
+      // If report is resolved and it was about a post/comment, we might want to take action
+      if (status === "resolved") {
+        const report = await storage.getReport(reportId);
+        if (!report) return res.json(updatedReport);
+
+        if (report.postId) {
+          // Delete the post and all associated content
+          await storage.deleteComments(report.postId);
+          await storage.deletePostReactions(report.postId);
+          await storage.deletePost(report.postId);
+        } else if (report.commentId) {
+          // Delete the reported comment
+          await storage.deleteComment(report.commentId);
+        }
+      }
+
       res.json(updatedReport);
     } catch (error) {
       console.error('Error updating report:', error);

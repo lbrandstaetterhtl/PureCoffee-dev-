@@ -37,20 +37,10 @@ export default function AdminDashboard() {
 
   const { data: users, isLoading: usersLoading } = useQuery<User[]>({
     queryKey: ["/api/admin/users"],
-    queryFn: async () => {
-      const res = await fetch("/api/admin/users");
-      if (!res.ok) throw new Error("Failed to fetch users");
-      return res.json();
-    },
   });
 
   const { data: reports, isLoading: reportsLoading } = useQuery<Report[]>({
     queryKey: ["/api/admin/reports"],
-    queryFn: async () => {
-      const res = await fetch("/api/admin/reports");
-      if (!res.ok) throw new Error("Failed to fetch reports");
-      return res.json();
-    },
   });
 
   const updateUserMutation = useMutation({
@@ -117,7 +107,9 @@ export default function AdminDashboard() {
                     <Table>
                       <TableHeader>
                         <TableRow>
+                          <TableHead>Reporter</TableHead>
                           <TableHead>Type</TableHead>
+                          <TableHead>Content</TableHead>
                           <TableHead>Reason</TableHead>
                           <TableHead>Status</TableHead>
                           <TableHead>Reported On</TableHead>
@@ -127,8 +119,14 @@ export default function AdminDashboard() {
                       <TableBody>
                         {reports?.map((report) => (
                           <TableRow key={report.id}>
+                            <TableCell>{report.reporter?.username}</TableCell>
                             <TableCell>
-                              {report.postId ? "Post" : "Comment"}
+                              {report.content?.type === 'post' ? "Post" : "Comment"}
+                            </TableCell>
+                            <TableCell className="max-w-xs truncate">
+                              {report.content?.type === 'post' 
+                                ? report.content.title
+                                : report.content?.content}
                             </TableCell>
                             <TableCell>{report.reason}</TableCell>
                             <TableCell>

@@ -31,7 +31,7 @@ export interface IStorage {
   createReport(report: Omit<Report, "id" | "createdAt" | "status">): Promise<Report>;
   getReports(): Promise<Report[]>;
   updateReportStatus(id: number, status: string): Promise<Report>;
-
+  
   sessionStore: session.Store;
   createVerificationToken(token: {
     token: string;
@@ -81,6 +81,10 @@ export interface IStorage {
   deletePostReactions(postId: number): Promise<void>;
   deleteReports(postId: number): Promise<void>;
   deletePost(postId: number): Promise<void>;
+    
+  // Add new methods for admin features
+  getUsers(): Promise<User[]>;
+  getReport(id: number): Promise<Report | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -442,6 +446,14 @@ export class DatabaseStorage implements IStorage {
 
   async deletePost(postId: number): Promise<void> {
     await db.delete(posts).where(eq(posts.id, postId));
+  }
+  async getUsers(): Promise<User[]> {
+    return db.select().from(users).orderBy(desc(users.createdAt));
+  }
+
+  async getReport(id: number): Promise<Report | undefined> {
+    const [report] = await db.select().from(reports).where(eq(reports.id, id));
+    return report;
   }
 }
 
