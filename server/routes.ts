@@ -36,7 +36,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create HTTP server
   const httpServer = createServer(app);
 
-  // Setup WebSocket server
+  // Setup WebSocket server with specific path
   const wss = new WebSocketServer({ noServer: true });
 
   // Create session parser
@@ -49,17 +49,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Handle WebSocket upgrade
   httpServer.on('upgrade', function (request, socket, head) {
-    sessionParser(request as any, {} as any, () => {
-      if (!(request as any).session?.passport?.user) {
-        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-        socket.destroy();
-        return;
-      }
+    const pathname = new URL(request.url!, `http://${request.headers.host}`).pathname;
 
-      wss.handleUpgrade(request, socket, head, function (ws) {
-        wss.emit('connection', ws, request);
+    if (pathname === '/ws') {
+      sessionParser(request as any, {} as any, () => {
+        if (!(request as any).session?.passport?.user) {
+          socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+          socket.destroy();
+          return;
+        }
+
+        wss.handleUpgrade(request, socket, head, function (ws) {
+          wss.emit('connection', ws, request);
+        });
       });
-    });
+    } else {
+      socket.destroy();
+    }
   });
 
   // Store connected clients
@@ -69,7 +75,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const userId = request.session.passport.user;
     clients.set(userId, ws);
 
+    // Send initial connection success message
+    ws.send(JSON.stringify({ type: 'connected' }));
+
     ws.on('close', () => {
+      clients.delete(userId);
+    });
+
+    ws.on('error', (error) => {
+      console.error('WebSocket error:', error);
       clients.delete(userId);
     });
   });
