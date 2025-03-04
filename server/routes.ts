@@ -53,20 +53,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return {
             ...comment,
             author: {
-              username: commentAuthor?.username || 'Unknown',
-              profilePictureUrl: commentAuthor?.profilePictureUrl
+              username: commentAuthor?.username || 'Unknown'
             }
           };
         }));
 
         const reactions = await storage.getPostReactions(post.id);
         const userReaction = req.user ? await storage.getUserPostReaction(req.user.id, post.id) : null;
+        const isFollowing = req.user ? await storage.isFollowing(req.user.id, post.authorId) : false;
 
         return {
           ...post,
           author: {
+            id: author?.id,
             username: author?.username || 'Unknown',
-            profilePictureUrl: author?.profilePictureUrl
+            isFollowing
           },
           comments: commentsWithAuthors,
           reactions,

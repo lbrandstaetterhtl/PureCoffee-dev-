@@ -16,16 +16,14 @@ import { UserAvatar } from "@/components/ui/user-avatar";
 type PostWithAuthor = Post & {
   author: {
     username: string;
-    profilePictureUrl: string | null;
-    id: number; // Added id for follow/unfollow functionality
-    isFollowing: boolean; // Added isFollowing for follow button state
+    id: number;
+    isFollowing: boolean;
   };
   comments: Array<{
     id: number;
     content: string;
     author: {
       username: string;
-      profilePictureUrl: string | null;
     };
     createdAt: string;
   }>;
@@ -45,7 +43,7 @@ export default function DiscussionsFeedPage() {
   const { data: posts, isLoading } = useQuery<PostWithAuthor[]>({
     queryKey: ["/api/posts", "discussions"],
     queryFn: async () => {
-      const res = await fetch("/api/posts?category=discussion&include=author,comments,reactions,userReaction,isFollowing");
+      const res = await fetch("/api/posts?category=discussion");
       if (!res.ok) throw new Error("Failed to fetch posts");
       return res.json();
     },
@@ -80,6 +78,7 @@ export default function DiscussionsFeedPage() {
       if (!res.ok) throw new Error(await res.text());
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/posts", "discussions"] });
       queryClient.invalidateQueries({ queryKey: ["/api/following"] });
       toast({
         title: "Success",
@@ -94,6 +93,7 @@ export default function DiscussionsFeedPage() {
       if (!res.ok) throw new Error(await res.text());
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/posts", "discussions"] });
       queryClient.invalidateQueries({ queryKey: ["/api/following"] });
       toast({
         title: "Success",
@@ -141,7 +141,7 @@ export default function DiscussionsFeedPage() {
                       </div>
                       {post.author.id !== user?.id && (
                         <Button
-                          variant="outline"
+                          variant={post.author.isFollowing ? "default" : "outline"}
                           size="sm"
                           onClick={() =>
                             post.author.isFollowing
@@ -150,7 +150,7 @@ export default function DiscussionsFeedPage() {
                           }
                           disabled={followMutation.isPending || unfollowMutation.isPending}
                         >
-                          {post.author.isFollowing ? "Unfollow" : "Follow"}
+                          {post.author.isFollowing ? "Following" : "Follow"}
                         </Button>
                       )}
                     </div>
