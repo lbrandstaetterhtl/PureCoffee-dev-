@@ -34,8 +34,8 @@ export default function AdminDashboard() {
 
   console.log('Current user:', user); // Debug log
 
-  // Check admin access
-  const hasAdminAccess = user && (user.role === 'owner' || user.is_admin);
+  // Check admin access - allow both admins and owners
+  const hasAdminAccess = user && (user.role === 'owner' || user.role === 'admin');
   if (!hasAdminAccess) {
     console.log('Access denied:', { user }); // Debug log for access denial
     return <Redirect to="/" />;
@@ -116,16 +116,16 @@ export default function AdminDashboard() {
   };
 
   const canManageUser = (targetUser: User) => {
+    // Allow both admins and owners to manage users, but prevent them from managing other admins/owners
     if (user?.role === 'owner') return true;
-    if (user?.is_admin) {
+    if (user?.role === 'admin') {
       return targetUser.role === 'user';
     }
     return false;
   };
 
   const handleRoleChange = (targetUser: User) => {
-    if (user?.role !== 'owner') return;
-
+    // Allow both admins and owners to change roles
     if (targetUser.role === 'user') {
       if (window.confirm(`Are you sure you want to make ${targetUser.username} an admin? This will give them administrative privileges.`)) {
         console.log('Making admin:', targetUser.username);
@@ -228,7 +228,7 @@ export default function AdminDashboard() {
                             <TableCell>
                               {canManageUser(targetUser) && (
                                 <div className="flex items-center space-x-2">
-                                  {user?.role === 'owner' && (
+                                  {(user?.role === 'owner' || user?.role === 'admin') && (
                                     <Button
                                       size="sm"
                                       variant={targetUser.karma < 0 ? "default" : "destructive"}
@@ -271,7 +271,7 @@ export default function AdminDashboard() {
                                           console.log('Verifying user:', targetUser.username);
                                           updateUserMutation.mutate({
                                             userId: targetUser.id,
-                                            data: { emailVerified: true }
+                                            data: { emailVerified: !targetUser.emailVerified }
                                           });
                                         }}
                                         disabled={updateUserMutation.isPending}
@@ -288,17 +288,11 @@ export default function AdminDashboard() {
                                           </>
                                         )}
                                       </Button>
-                                      {user?.role === 'owner' && targetUser.role === 'user' && (
+                                      {(user?.role === 'owner' || user?.role === 'admin') && targetUser.role === 'user' && (
                                         <Button
                                           size="sm"
                                           variant="default"
-                                          onClick={() => {
-                                            console.log('Making admin:', targetUser.username);
-                                            updateUserMutation.mutate({
-                                              userId: targetUser.id,
-                                              data: { role: 'admin' }
-                                            });
-                                          }}
+                                          onClick={() => handleRoleChange(targetUser)}
                                           disabled={updateUserMutation.isPending}
                                         >
                                           <Shield className="h-4 w-4 mr-1" />
