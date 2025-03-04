@@ -1,6 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
+import { setupVite, log } from "./vite";
 import path from "path";
 import fs from "fs";
 
@@ -50,8 +50,14 @@ log("Request logging middleware configured");
     });
     log("Error handling middleware configured");
 
-    // Get port from environment variable
-    const port = process.env.PORT || 3000;
+    // In development, setup Vite to serve the frontend
+    log("Setting up Vite for development...");
+    await setupVite(app, server);
+    log("Vite setup complete");
+
+    // ALWAYS serve the app on port 5000
+    // this serves both the API and the client
+    const port = 5000;
 
     // Listen on all network interfaces with proper options
     server.listen({
