@@ -132,9 +132,10 @@ export class DatabaseStorage implements IStorage {
     if (typeof profile.isAdmin !== 'undefined') updateData.isAdmin = profile.isAdmin;
     if (profile.role) {
       updateData.role = profile.role;
-      // Ensure owner is always verified
+      // Ensure owner is always verified and email verified
       if (profile.role === 'owner') {
         updateData.verified = true;
+        updateData.emailVerified = true;
       }
     }
     if (typeof profile.emailVerified !== 'undefined') updateData.emailVerified = profile.emailVerified;
