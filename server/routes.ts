@@ -73,12 +73,12 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
     res.status(401).send("Unauthorized");
   };
 
-  // Setup WebSocket server
+  // WebSocket server setup section only
   const wss = new WebSocketServer({
     server: httpServer,
     path: '/ws',
     verifyClient: (info, done) => {
-      console.log("WebSocket connection attempt");
+      console.log("WebSocket connection attempt from:", info.req.socket.remoteAddress);
       sessionParser(info.req, {} as any, () => {
         const session = (info.req as any).session;
         const userId = session?.passport?.user;
@@ -86,7 +86,7 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
           console.log("WebSocket authenticated for user:", userId);
           done(true);
         } else {
-          console.log("WebSocket authentication failed");
+          console.log("WebSocket authentication failed.  Session:", session);
           done(false, 401, "Unauthorized");
         }
       });
@@ -102,6 +102,9 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
       console.log("WebSocket disconnected for user:", userId);
       connections.delete(userId);
     });
+
+    // Send initial connection success message
+    ws.send(JSON.stringify({ type: 'connected', message: 'WebSocket connected successfully' }));
   });
 
   // Serve uploaded files
@@ -170,10 +173,19 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
         authorId: req.user!.id,
       });
 
+      // Get author details
+      const author = await storage.getUser(req.user!.id);
+
       // Broadcast new post to all connected clients
       const message = JSON.stringify({
         type: 'new_post',
-        data: post
+        data: {
+          ...post,
+          author: {
+            username: author?.username || 'Unknown',
+            verified: author?.verified || false
+          }
+        }
       });
 
       connections.forEach(client => {
@@ -627,6 +639,23 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
         receiverId,
         content,
       });
+
+      // Get sender details for the notification
+      const sender = await storage.getUser(senderId);
+
+      // Send real-time notification to receiver
+      const receiverSocket = connections.get(receiverId);
+      if (receiverSocket?.readyState === WebSocket.OPEN) {
+        receiverSocket.send(JSON.stringify({
+          type: 'new_message',
+          message: {
+            ...message,
+            sender: {
+              username: sender?.username || 'Unknown'
+            }
+          }
+        }));
+      }
 
       // Create notification for new message
       await storage.createNotification({
