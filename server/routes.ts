@@ -223,6 +223,9 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
           userId: post.authorId,
           type: "new_comment",
           fromUserId: req.user!.id,
+          message: `${req.user!.username} commented on your post: "${result.data.content}"`,
+          postId: post.id,
+          commentId: comment.id
         });
       }
 
@@ -269,10 +272,14 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
 
         // Create notification for comment like
         if (comment.authorId !== userId) {
+          const post = await storage.getPost(comment.postId);
           await storage.createNotification({
             userId: comment.authorId,
             type: "comment_like",
             fromUserId: userId,
+            message: `${req.user!.username} liked your comment`,
+            postId: post.id,
+            commentId: comment.id
           });
         }
       }
@@ -322,6 +329,8 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
               userId: post.authorId,
               type: "post_like",
               fromUserId: userId,
+              message: `${req.user!.username} liked your post`,
+              postId: post.id
             });
           }
         }
@@ -908,7 +917,7 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
         await storage.deleteUser(userId);
         res.json({ message: "User banned and deleted successfully" });
       } else {
-        // For role updates, ensure proper permissions
+        // For role updates, ensure properpermissions
         if (req.body.role === 'admin' && req.user.role !== 'owner') {
           req.body.isAdmin = true; // Ensure isAdmin is set when promoting to admin
         }
@@ -918,7 +927,7 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
         }
 
         // For non-ban updates
-        const updatedUser = await storage.updateUserProfile(userId, reqreq.body);
+        const updatedUser = await storage.updateUserProfile(userId, req.body);
         console.log('Updated user:', updatedUser);
         res.json(updatedUser);
       }
@@ -953,6 +962,21 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
     } catch (error) {
       console.error('Error resetting roles:', error);
       res.status(500).send("Failed to reset roles");
+    }
+  });
+
+  // Ensure new users start with 0 reputation
+  app.post("/api/users", async (req, res) => {
+    try {
+      const result = insertUserSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json(result.error);
+      }
+      const newUser = await storage.createUser({ ...result.data, karma: 0 });
+      res.status(201).json(newUser);
+    } catch (error) {
+      console.error("Error creating user:", error);
+      res.status(500).send("Failed to create user");
     }
   });
 
