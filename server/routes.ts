@@ -129,6 +129,7 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
             ...comment,
             author: {
               username: commentAuthor?.username || 'Unknown',
+              avatarUrl: commentAuthor?.avatarUrl,
               role: commentAuthor?.role || 'user'
             },
             likes,
@@ -145,6 +146,7 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
           author: {
             id: author?.id,
             username: author?.username || 'Unknown',
+            avatarUrl: author?.avatarUrl,
             isFollowing
           },
           comments: commentsWithAuthors,
@@ -195,7 +197,10 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
         const author = await storage.getUser(comment.authorId);
         return {
           ...comment,
-          author: { username: author?.username || 'Unknown' }
+          author: { 
+            username: author?.username || 'Unknown',
+            avatarUrl: author?.avatarUrl
+          }
         };
       }));
       res.json(commentsWithAuthors);
@@ -892,7 +897,7 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
       const reports = await storage.getReports();
       console.log('Raw reports:', reports); // Debug log
 
-      const enrichedReports = await Promise.all(reports.map(async (report) => {
+      const enrichedReports = await Promise.all(reports.map(async (report) =>{
         const reporter = await storage.getUser(report.reporterId);
         let reportedContent = null;
         let contentType = null;
