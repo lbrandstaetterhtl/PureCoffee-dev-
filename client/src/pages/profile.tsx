@@ -195,7 +195,13 @@ export default function ProfilePage() {
         <div className="max-w-2xl mx-auto space-y-8">
           <div className="flex items-center gap-4">
             <div className="relative">
-              <UserAvatar user={{ username: user?.username || '', avatarUrl: user?.avatarUrl }} size="lg" />
+              <UserAvatar 
+                user={{ 
+                  username: user?.username || '', 
+                  avatarUrl: user?.profile_picture_url 
+                }} 
+                size="lg" 
+              />
               <Input
                 type="file"
                 accept="image/jpeg,image/png,image/gif"

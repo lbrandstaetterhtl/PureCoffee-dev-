@@ -45,11 +45,11 @@ const avatarUpload = multer({
     }
   }),
   fileFilter: (req, file, cb) => {
-    const allowedTypes = ["image/jpeg", "image/png", "image/gif"];
+    const allowedTypes = ["image/jpeg", "image/png"];
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error("Invalid file type. Only JPEG, PNG and GIF are allowed."));
+      cb(new Error("Invalid file type. Only JPEG and PNG are allowed."));
     }
   },
   limits: {
@@ -502,7 +502,7 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
   // Update the profile route
   app.patch("/api/profile", isAuthenticated, async (req, res) => {
     try {
-      const updateData: Partial<{ username: string; email: string; role: string; avatarUrl: string }> = {};
+      const updateData: Partial<{ username: string; email: string; role: string; avatarUrl: string; profile_picture_url: string }> = {};
 
       if (req.body.username) {
         updateData.username = req.body.username;
@@ -517,7 +517,7 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
       }
 
       if (req.body.avatarUrl) {
-        updateData.avatarUrl = req.body.avatarUrl;
+        updateData.profile_picture_url = req.body.avatarUrl; // Use profile_picture_url
       }
 
       const updatedUser = await storage.updateUserProfile(req.user!.id, updateData);
@@ -542,12 +542,18 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
 
       // Update user profile with new avatar URL
       const updatedUser = await storage.updateUserProfile(req.user!.id, {
-        avatarUrl
+        profile_picture_url: avatarUrl // Changed from avatarUrl to profile_picture_url to match DB schema
       });
 
       console.log('Updated user:', updatedUser); // Debug log
 
-      res.json(updatedUser);
+      // Transform the response to include avatarUrl instead of profile_picture_url
+      const responseUser = {
+        ...updatedUser,
+        avatarUrl: updatedUser.profile_picture_url
+      };
+
+      res.json(responseUser);
     } catch (error) {
       console.error('Error uploading avatar:', error);
       res.status(500).send("Failed to upload avatar");
@@ -951,7 +957,7 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
 
         const enrichedReport = {
           ...report,
-          reporter:{
+          reporter: {
             username: reporter?.username || 'Unknown'
           },
           content: reportedContent ? {
