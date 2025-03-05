@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
 import { Loader2, Info, Menu } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useWebSocket } from "@/hooks/use-websocket.tsx"; 
+import { useWebSocket } from "@/hooks/use-websocket"; // Correct import path without .tsx extension
 
 type Message = {
   id: number;

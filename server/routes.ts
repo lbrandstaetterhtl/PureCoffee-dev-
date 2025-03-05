@@ -79,32 +79,56 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
     path: '/ws',
     verifyClient: (info, done) => {
       console.log("WebSocket connection attempt from:", info.req.socket.remoteAddress);
-      sessionParser(info.req, {} as any, () => {
-        const session = (info.req as any).session;
-        const userId = session?.passport?.user;
-        if (userId) {
-          console.log("WebSocket authenticated for user:", userId);
-          done(true);
-        } else {
-          console.log("WebSocket authentication failed.  Session:", session);
-          done(false, 401, "Unauthorized");
-        }
-      });
+      try {
+        sessionParser(info.req, {} as any, () => {
+          const session = (info.req as any).session;
+          const userId = session?.passport?.user;
+          if (userId) {
+            console.log("WebSocket authenticated for user:", userId);
+            (info.req as any).userId = userId; // Store userId for later use
+            done(true);
+          } else {
+            console.log("WebSocket authentication failed. Session:", session);
+            done(false, 401, "Unauthorized");
+          }
+        });
+      } catch (error) {
+        console.error("WebSocket session parsing error:", error);
+        done(false, 500, "Internal Server Error");
+      }
     }
   });
 
   wss.on('connection', (ws, req: any) => {
-    const userId = req.session.passport.user;
+    const userId = req.userId; // Use stored userId from verifyClient
     console.log("WebSocket connected for user:", userId);
-    connections.set(userId, ws);
+
+    // Store connection with error handling
+    try {
+      connections.set(userId, ws);
+    } catch (error) {
+      console.error("Error storing WebSocket connection:", error);
+    }
 
     ws.on('close', () => {
       console.log("WebSocket disconnected for user:", userId);
       connections.delete(userId);
     });
 
+    ws.on('error', (error) => {
+      console.error("WebSocket error for user:", userId, error);
+      connections.delete(userId);
+    });
+
     // Send initial connection success message
-    ws.send(JSON.stringify({ type: 'connected', message: 'WebSocket connected successfully' }));
+    try {
+      ws.send(JSON.stringify({ 
+        type: 'connected', 
+        message: 'WebSocket connected successfully' 
+      }));
+    } catch (error) {
+      console.error("Error sending connection confirmation:", error);
+    }
   });
 
   // Serve uploaded files
