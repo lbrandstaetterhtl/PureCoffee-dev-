@@ -92,6 +92,8 @@ export interface IStorage {
   unlikeComment(userId: number, commentId: number): Promise<void>;
   getUserCommentLike(userId: number, commentId: number): Promise<boolean>;
   getCommentLikes(commentId: number): Promise<number>;
+  resetAllKarma(): Promise<void>;
+  deleteAllPosts(): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -105,7 +107,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUser(id: number): Promise<User | undefined> {
+    console.log('Getting user with id:', id);
     const [user] = await db.select().from(users).where(eq(users.id, id));
+    console.log('Retrieved user:', user);
     return user;
   }
 
@@ -124,35 +128,26 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
-  async updateUserProfile(id: number, profile: Partial<{ username: string; email: string; profilePictureUrl: string; isAdmin: boolean; role: string; emailVerified: boolean; verified: boolean }>): Promise<User> {
+  async updateUserProfile(id: number, profile: Partial<{ username: string; email: string; avatarUrl: string; isAdmin: boolean; role: string; emailVerified: boolean; verified: boolean }>): Promise<User> {
+    console.log('Updating user profile. ID:', id, 'Profile data:', profile);
+
     const updateData: Record<string, any> = {};
     if (profile.username) updateData.username = profile.username;
     if (profile.email) updateData.email = profile.email;
-    if (profile.profilePictureUrl) updateData.avatarUrl = profile.profilePictureUrl;
+    if (profile.avatarUrl) updateData.avatarUrl = profile.avatarUrl;
     if (typeof profile.isAdmin !== 'undefined') updateData.isAdmin = profile.isAdmin;
-    if (profile.role) {
-      updateData.role = profile.role;
-      // Ensure owner is always verified and email verified
-      if (profile.role === 'owner') {
-        updateData.verified = true;
-        updateData.emailVerified = true;
-      }
-    }
+    if (profile.role) updateData.role = profile.role;
     if (typeof profile.emailVerified !== 'undefined') updateData.emailVerified = profile.emailVerified;
     if (typeof profile.verified !== 'undefined') updateData.verified = profile.verified;
 
-    console.log('Updating user profile with data:', updateData); // Debug log
-
-    if (Object.keys(updateData).length === 0) {
-      return this.getUser(id) as Promise<User>;
-    }
+    console.log('Final update data:', updateData);
 
     const [user] = await db.update(users)
       .set(updateData)
       .where(eq(users.id, id))
       .returning();
 
-    console.log('Updated user:', user); // Debug log
+    console.log('Updated user in database:', user);
     return user;
   }
 
@@ -626,6 +621,38 @@ export class DatabaseStorage implements IStorage {
       .from(commentLikes)
       .where(eq(commentLikes.commentId, commentId));
     return result[0].count;
+  }
+  async resetAllKarma(): Promise<void> {
+    console.log('Resetting karma for all users');
+    try {
+      await db.update(users)
+        .set({ karma: 0 });
+      console.log('Successfully reset karma for all users');
+    } catch (error) {
+      console.error('Error resetting karma:', error);
+      throw error;
+    }
+  }
+
+  async deleteAllPosts(): Promise<void> {
+    console.log('Deleting all posts and related data');
+    try {
+      // Delete all related data first
+      await db.delete(commentLikes);
+      await db.delete(comments);
+      await db.delete(postLikes);
+      await db.delete(reports).where(
+        or(
+          sql`post_id IS NOT NULL`,
+          sql`discussion_id IS NOT NULL`
+        )
+      );
+      await db.delete(posts);
+      console.log('Successfully deleted all posts and related data');
+    } catch (error) {
+      console.error('Error deleting posts:', error);
+      throw error;
+    }
   }
 }
 

@@ -503,20 +503,14 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
     }
   });
 
-  // Update the profile route to handle file uploads and ensure session is updated
-  app.patch("/api/profile", isAuthenticated, avatarUpload.single('avatarFile'), async (req, res) => {
+  // Update the profile route to handle avatar URL and ensure session is updated
+  app.patch("/api/profile", isAuthenticated, async (req, res) => {
     try {
       const updateData: Partial<{ username: string; email: string; avatarUrl: string; isAdmin: boolean; role: string; emailVerified: boolean; verified: boolean }> = {};
 
       if (req.body.username) updateData.username = req.body.username;
       if (req.body.email) updateData.email = req.body.email;
-
-      // Handle avatar file upload
-      if (req.file) {
-        // Create avatar URL using the file path
-        const avatarUrl = `/uploads/avatars/${req.file.filename}`;
-        updateData.avatarUrl = avatarUrl;
-      }
+      if (req.body.avatarUrl) updateData.avatarUrl = req.body.avatarUrl;
 
       console.log('Updating profile with data:', updateData); // Debug log
 
@@ -892,8 +886,7 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
 
   app.get("/api/admin/users", isAdmin, async (req, res) => {
     try{
-      const users = await storage.getUsers(); // Use storage interface
-      res.json(users);
+      const users = await storage.getUsers(); // Use storage interface      res.json(users);
     } catch (error) {
       console.error('Error fetching users:', error);
       res.status(500).send("Failed to fetch users");
@@ -945,7 +938,8 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
           },
           content: reportedContent ? {
             type: contentType,
-            title: contentType === 'comment' ? null : reportedContent.title,            content: reportedContent.content
+            title: contentType === 'comment' ? null : reportedContent.title,
+            content: reportedContent.content
           } : null
         };
 
@@ -1071,6 +1065,28 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
     } catch (error) {
       console.error('Error resetting roles:', error);
       res.status(500).send("Failed to reset roles");
+    }
+  });
+
+  // Admin route to reset all karma
+  app.post("/api/admin/reset-karma", isAdmin, async (req, res) => {
+    try {
+      await storage.resetAllKarma();
+      res.sendStatus(200);
+    } catch (error) {
+      console.error('Error resetting karma:', error);
+      res.status(500).send("Failed to reset karma");
+    }
+  });
+
+  // Admin route to delete all posts
+  app.post("/api/admin/delete-all-posts", isAdmin, async (req, res) => {
+    try {
+      await storage.deleteAllPosts();
+      res.sendStatus(200);
+    } catch (error) {
+      console.error('Error deleting posts:', error);
+      res.status(500).send("Failed to delete posts");
     }
   });
 

@@ -23,7 +23,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Loader2, UserPlus, UserMinus, Trophy, Image as ImageIcon } from "lucide-react";
+import { Loader2, Trophy } from "lucide-react";
 import { useState } from "react";
 
 export default function ProfilePage() {
@@ -49,39 +49,12 @@ export default function ProfilePage() {
     },
   });
 
-  const followMutation = useMutation({
-    mutationFn: async (userId: number) => {
-      const res = await apiRequest("POST", `/api/follow/${userId}`);
-      if (!res.ok) throw new Error(await res.text());
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/following"] });
-      toast({
-        title: "Success",
-        description: "User followed successfully",
-      });
-    },
-  });
-
-  const unfollowMutation = useMutation({
-    mutationFn: async (userId: number) => {
-      const res = await apiRequest("DELETE", `/api/follow/${userId}`);
-      if (!res.ok) throw new Error(await res.text());
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/following"] });
-      toast({
-        title: "Success",
-        description: "User unfollowed successfully",
-      });
-    },
-  });
-
   const profileForm = useForm<UpdateProfile>({
     resolver: zodResolver(updateProfileSchema),
     defaultValues: {
       username: user?.username || "",
       email: user?.email || "",
+      avatarUrl: user?.avatarUrl || "",
     },
   });
 
@@ -96,16 +69,7 @@ export default function ProfilePage() {
 
   const updateProfileMutation = useMutation({
     mutationFn: async (data: UpdateProfile) => {
-      const formData = new FormData();
-      if (data.username) formData.append("username", data.username);
-      if (data.email) formData.append("email", data.email);
-      if (data.avatarFile) formData.append("avatarFile", data.avatarFile);
-
-      const res = await fetch("/api/profile", {
-        method: "PATCH",
-        body: formData,
-      });
-
+      const res = await apiRequest("PATCH", "/api/profile", data);
       if (!res.ok) throw new Error(await res.text());
       return res.json();
     },
@@ -147,25 +111,8 @@ export default function ProfilePage() {
     },
   });
 
-  const handleAvatarChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) { // 5MB limit
-        toast({
-          title: "Error",
-          description: "Avatar file size must be less than 5MB",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setAvatarPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-      profileForm.setValue("avatarFile", file);
-    }
+  const handleAvatarPreview = (url: string) => {
+    setAvatarPreview(url);
   };
 
   return (
@@ -182,19 +129,6 @@ export default function ProfilePage() {
                 }} 
                 size="lg" 
               />
-              <label 
-                htmlFor="avatar-upload" 
-                className="absolute bottom-0 right-0 p-1 bg-primary text-primary-foreground rounded-full cursor-pointer hover:opacity-90"
-              >
-                <ImageIcon className="h-4 w-4" />
-                <input
-                  id="avatar-upload"
-                  type="file"
-                  className="hidden"
-                  accept="image/*"
-                  onChange={handleAvatarChange}
-                />
-              </label>
             </div>
             <div>
               <h1 className="text-4xl font-bold">Profile Settings</h1>
@@ -240,6 +174,27 @@ export default function ProfilePage() {
                         <FormLabel>Email</FormLabel>
                         <FormControl>
                           <Input type="email" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={profileForm.control}
+                    name="avatarUrl"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Avatar URL</FormLabel>
+                        <FormControl>
+                          <Input 
+                            type="url" 
+                            {...field} 
+                            onChange={(e) => {
+                              field.onChange(e);
+                              handleAvatarPreview(e.target.value);
+                            }}
+                            placeholder="Enter image URL (e.g., https://example.com/avatar.jpg)"
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
