@@ -506,7 +506,7 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
   // Update the profile route to handle file uploads and ensure session is updated
   app.patch("/api/profile", isAuthenticated, avatarUpload.single('avatarFile'), async (req, res) => {
     try {
-      const updateData: Partial<{ username: string; email: string; profilePictureUrl: string; isAdmin: boolean; role: string; emailVerified: boolean; verified: boolean }> = {};
+      const updateData: Partial<{ username: string; email: string; avatarUrl: string; isAdmin: boolean; role: string; emailVerified: boolean; verified: boolean }> = {};
 
       if (req.body.username) updateData.username = req.body.username;
       if (req.body.email) updateData.email = req.body.email;
@@ -515,7 +515,7 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
       if (req.file) {
         // Create avatar URL using the file path
         const avatarUrl = `/uploads/avatars/${req.file.filename}`;
-        updateData.profilePictureUrl = avatarUrl;
+        updateData.avatarUrl = avatarUrl;
       }
 
       console.log('Updating profile with data:', updateData); // Debug log
@@ -523,11 +523,15 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
       const updatedUser = await storage.updateUserProfile(req.user!.id, updateData);
 
       // Update the user in session
-      if (req.user) {
-        req.user = updatedUser;
-      }
+      req.login(updatedUser, (err) => {
+        if (err) {
+          console.error('Error updating session:', err);
+          return res.status(500).send("Failed to update session");
+        }
+        console.log('Session updated with new user data:', updatedUser);
+        res.json(updatedUser);
+      });
 
-      res.json(updatedUser);
     } catch (error) {
       console.error('Error updating profile:', error);
       res.status(500).send("Failed to update profile");
