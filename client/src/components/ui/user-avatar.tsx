@@ -20,7 +20,7 @@ export function UserAvatar({ user, size = "md" }: UserAvatarProps) {
     <Avatar className={sizeClasses[size]}>
       {user.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user.username} />}
       <AvatarFallback>
-        <UserCircle className="h-4 w-4" />
+        <UserCircle className={`h-${size === 'sm' ? '4' : '6'} w-${size === 'sm' ? '4' : '6'}`} />
       </AvatarFallback>
     </Avatar>
   );
