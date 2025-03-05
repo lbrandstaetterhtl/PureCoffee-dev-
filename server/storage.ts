@@ -92,6 +92,9 @@ export interface IStorage {
   unlikeComment(userId: number, commentId: number): Promise<void>;
   getUserCommentLike(userId: number, commentId: number): Promise<boolean>;
   getCommentLikes(commentId: number): Promise<number>;
+  
+  // Add new method for active users count
+  getActiveUsersCount(since: Date): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -626,6 +629,25 @@ export class DatabaseStorage implements IStorage {
       .from(commentLikes)
       .where(eq(commentLikes.commentId, commentId));
     return result[0].count;
+  }
+
+  async getActiveUsersCount(since: Date): Promise<number> {
+    // Get active users from posts
+    const postsActivity = await db.select({ userId: posts.authorId })
+      .from(posts)
+      .where(sql`${posts.createdAt} >= ${since}`);
+
+    // Get active users from comments
+    const commentsActivity = await db.select({ userId: comments.authorId })
+      .from(comments)
+      .where(sql`${comments.createdAt} >= ${since}`);
+
+    // Combine both results into a Set to avoid duplicates
+    const activeUserIds = new Set<number>();
+    postsActivity.forEach(record => activeUserIds.add(record.userId));
+    commentsActivity.forEach(record => activeUserIds.add(record.userId));
+
+    return activeUserIds.size;
   }
 }
 

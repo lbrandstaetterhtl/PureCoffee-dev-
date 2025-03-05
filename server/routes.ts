@@ -786,6 +786,53 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
   });
 
   // Admin Routes
+  // Add this route before the other admin routes
+  app.get("/api/admin/stats", isAdmin, async (req, res) => {
+    try {
+      // Get user statistics
+      const users = await storage.getUsers();
+      const totalUsers = users.length;
+      const verifiedUsers = users.filter(user => user.verified).length;
+      const bannedUsers = users.filter(user => user.karma < 0).length;
+
+      // We'll consider users who have posted or commented in the last 30 days as active
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      // Get post statistics
+      const posts = await storage.getPosts();
+      const totalPosts = posts.length;
+
+      // Get report statistics
+      const reports = await storage.getReports();
+      const totalReports = reports.length;
+      const pendingReports = reports.filter(report => report.status === 'pending').length;
+      const resolvedReports = reports.filter(report => report.status === 'resolved').length;
+
+      // Calculate active users based on recent activity
+      const activeUsers = await storage.getActiveUsersCount(thirtyDaysAgo);
+
+      const stats = {
+        totalUsers,
+        activeUsers,
+        verifiedUsers,
+        bannedUsers,
+        totalPosts,
+        totalReports,
+        pendingReports,
+        resolvedReports
+      };
+
+      console.log('Fetching all reports');
+      console.log('Found reports:', reports);
+
+      res.json(stats);
+    } catch (error) {
+      console.error('Error fetching admin stats:', error);
+      res.status(500).send("Failed to fetch admin statistics");
+    }
+  });
+
   // Add this route after the other user-related routes, before the admin routes
   app.get("/api/users/:username", async (req, res) => {
     try {
