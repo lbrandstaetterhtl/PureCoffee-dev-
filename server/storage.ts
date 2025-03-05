@@ -13,7 +13,7 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
-  updateUserProfile(id: number, profile: Partial<{ username: string; email: string; profilePictureUrl: string; isAdmin: boolean; role: string; emailVerified: boolean; verified: boolean }>): Promise<User>;
+  updateUserProfile(id: number, profile: Partial<{ username: string; email: string; avatarUrl: string; isAdmin: boolean; role: string; emailVerified: boolean; verified: boolean }>): Promise<User>;
   updateUserPassword(id: number, password: string): Promise<User>;
   updateUserKarma(id: number, karma: number): Promise<User>;
 
@@ -134,7 +134,7 @@ export class DatabaseStorage implements IStorage {
     const updateData: Record<string, any> = {};
     if (profile.username) updateData.username = profile.username;
     if (profile.email) updateData.email = profile.email;
-    if (profile.avatarUrl) updateData.avatarUrl = profile.avatarUrl;
+    if (profile.avatarUrl !== undefined) updateData.avatarUrl = profile.avatarUrl;
     if (typeof profile.isAdmin !== 'undefined') updateData.isAdmin = profile.isAdmin;
     if (profile.role) updateData.role = profile.role;
     if (typeof profile.emailVerified !== 'undefined') updateData.emailVerified = profile.emailVerified;
