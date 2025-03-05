@@ -5,14 +5,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { UpdateProfile, UpdatePassword, updateProfileSchema, updatePasswordSchema, updateAvatarSchema, UpdateAvatar } from "@shared/schema";
+import { UpdateProfile, UpdatePassword, updateProfileSchema, updatePasswordSchema } from "@shared/schema";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-  CardDescription,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,11 +21,9 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-  FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Loader2, UserPlus, UserMinus, Trophy, Camera } from "lucide-react";
-import { ImageUpload } from "@/components/ui/image-upload";
+import { Loader2, UserPlus, UserMinus, Trophy } from "lucide-react";
 
 export default function ProfilePage() {
   const { user } = useAuth();
@@ -50,12 +47,39 @@ export default function ProfilePage() {
     },
   });
 
+  const followMutation = useMutation({
+    mutationFn: async (userId: number) => {
+      const res = await apiRequest("POST", `/api/follow/${userId}`);
+      if (!res.ok) throw new Error(await res.text());
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/following"] });
+      toast({
+        title: "Success",
+        description: "User followed successfully",
+      });
+    },
+  });
+
+  const unfollowMutation = useMutation({
+    mutationFn: async (userId: number) => {
+      const res = await apiRequest("DELETE", `/api/follow/${userId}`);
+      if (!res.ok) throw new Error(await res.text());
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/following"] });
+      toast({
+        title: "Success",
+        description: "User unfollowed successfully",
+      });
+    },
+  });
+
   const profileForm = useForm<UpdateProfile>({
     resolver: zodResolver(updateProfileSchema),
     defaultValues: {
       username: user?.username || "",
       email: user?.email || "",
-      avatarUrl: user?.avatarUrl || "",
     },
   });
 
@@ -65,13 +89,6 @@ export default function ProfilePage() {
       currentPassword: "",
       newPassword: "",
       confirmPassword: "",
-    },
-  });
-
-  const avatarForm = useForm<UpdateAvatar>({
-    resolver: zodResolver(updateAvatarSchema),
-    defaultValues: {
-      avatarUrl: user?.avatarUrl || "",
     },
   });
 
@@ -85,27 +102,6 @@ export default function ProfilePage() {
       toast({
         title: "Profile updated",
         description: "Your profile has been updated successfully.",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Update failed",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  const updateAvatarMutation = useMutation({
-    mutationFn: async (data: UpdateAvatar) => {
-      const res = await apiRequest("PATCH", "/api/profile/avatar", data);
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
-      toast({
-        title: "Avatar updated",
-        description: "Your avatar has been updated successfully.",
       });
     },
     onError: (error: Error) => {
@@ -144,7 +140,7 @@ export default function ProfilePage() {
       <main className="container mx-auto px-4 pt-24">
         <div className="max-w-2xl mx-auto space-y-8">
           <div className="flex items-center gap-4">
-            <UserAvatar user={{ username: user?.username || '', verified: user?.verified || false }} size="lg" />
+            <UserAvatar user={{ username: user?.username || '' }} size="lg" />
             <div>
               <h1 className="text-4xl font-bold">Profile Settings</h1>
               <div className="flex gap-4 mt-2">
@@ -160,23 +156,58 @@ export default function ProfilePage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Avatar</CardTitle>
-              <CardDescription>
-                Upload a new profile picture
-              </CardDescription>
+              <CardTitle>Followers</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <div className="flex items-center gap-4">
-                  <UserAvatar user={{ username: user?.username || '', verified: user?.verified || false }} size="lg" />
-                  <div className="flex-1">
-                    <ImageUpload
-                      onUploadComplete={(url) => {
-                        updateAvatarMutation.mutate({ avatarUrl: url });
-                      }}
-                    />
+                {followers?.map((follower) => (
+                  <div key={follower.id} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <UserAvatar user={follower} size="sm" />
+                      <span>{follower.username}</span>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => followMutation.mutate(follower.id)}
+                    >
+                      <UserPlus className="h-4 w-4 mr-2" />
+                      Follow Back
+                    </Button>
                   </div>
-                </div>
+                ))}
+                {!followers?.length && (
+                  <p className="text-muted-foreground text-center">No followers yet</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Following</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {following?.map((followed) => (
+                  <div key={followed.id} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <UserAvatar user={followed} size="sm" />
+                      <span>{followed.username}</span>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => unfollowMutation.mutate(followed.id)}
+                    >
+                      <UserMinus className="h-4 w-4 mr-2" />
+                      Unfollow
+                    </Button>
+                  </div>
+                ))}
+                {!following?.length && (
+                  <p className="text-muted-foreground text-center">Not following anyone yet</p>
+                )}
               </div>
             </CardContent>
           </Card>
