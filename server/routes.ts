@@ -10,6 +10,13 @@ import { insertDiscussionPostSchema, insertMediaPostSchema, insertCommentSchema,
 import type { Knex } from 'knex';
 import session from 'express-session';
 import { sql } from 'drizzle-orm';
+import fs from 'fs';
+
+// Ensure upload directories exist
+const uploadDir = path.join(process.cwd(), "uploads");
+const avatarDir = path.join(uploadDir, "avatars");
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
+if (!fs.existsSync(avatarDir)) fs.mkdirSync(avatarDir);
 
 // WebSocket connections store
 const connections = new Map<number, WebSocket>();
@@ -91,7 +98,7 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
   // Setup auth with session parser
   setupAuth(app, sessionParser);
 
-  // Serve uploaded files
+  // Serve uploaded files - make sure this comes before routes
   app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
   app.use("/uploads/avatars", express.static(path.join(process.cwd(), "uploads/avatars")));
 
@@ -99,6 +106,35 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
     if (req.isAuthenticated()) return next();
     res.status(401).send("Unauthorized");
   };
+
+  // Add profile picture upload endpoint
+  app.post("/api/profile/avatar", isAuthenticated, avatarUpload.single('avatar'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).send("No file uploaded");
+      }
+
+      console.log('Uploaded file:', req.file);
+
+      const avatarUrl = `/uploads/avatars/${req.file.filename}`;
+      console.log('Avatar URL:', avatarUrl);
+
+      // Update user profile with new avatar URL
+      const updatedUser = await storage.updateUserProfile(req.user!.id, {
+        profile_picture_url: avatarUrl
+      });
+
+      console.log('Updated user:', updatedUser);
+
+      res.json({
+        ...updatedUser,
+        profile_picture_url: avatarUrl
+      });
+    } catch (error) {
+      console.error('Error uploading avatar:', error);
+      res.status(500).send("Failed to upload avatar");
+    }
+  });
 
   // Setup WebSocket server
   const wss = new WebSocketServer({
@@ -528,34 +564,7 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
     }
   });
 
-  // Add profile picture upload endpoint
-  app.post("/api/profile/avatar", isAuthenticated, avatarUpload.single('avatar'), async (req, res) => {
-    try {
-      if (!req.file) {
-        return res.status(400).send("No file uploaded");
-      }
 
-      console.log('Uploaded file:', req.file); // Debug log
-
-      const avatarUrl = `/uploads/avatars/${req.file.filename}`;
-      console.log('Avatar URL:', avatarUrl); // Debug log
-
-      // Update user profile with new avatar URL
-      const updatedUser = await storage.updateUserProfile(req.user!.id, {
-        profile_picture_url: avatarUrl
-      });
-
-      console.log('Updated user:', updatedUser); // Debug log
-
-      res.json({
-        ...updatedUser,
-        avatarUrl: updatedUser.profile_picture_url
-      });
-    } catch (error) {
-      console.error('Error uploading avatar:', error);
-      res.status(500).send("Failed to upload avatar");
-    }
-  });
 
   // Followers
   app.post("/api/follow/:userId", isAuthenticated, async (req, res) => {
@@ -857,7 +866,7 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
         karma: user.karma,
         createdAt: user.createdAt,
         role: user.role,
-        avatarUrl: user.avatarUrl
+        profile_picture_url: user.profile_picture_url
       };
 
       console.log('Returning user data:', safeUser);
@@ -889,7 +898,7 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
   app.get("/api/following/:username", async (req, res) => {
     try {
       console.log('Fetching following for:', req.params.username);
-      const user = await storage.getUserByUsername(req.params.username);
+      const user= await storage.getUserByUsername(req.params.username);
       if (!user) {
         console.log('User not found for following:', req.params.username);
         return res.status(404).send("User not found");
