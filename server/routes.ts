@@ -982,6 +982,41 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
     }
   });
 
+  // Add this after the existing admin update route
+  app.patch("/api/admin/users/:id/verify", isAdmin, async (req, res) => {
+    try {
+      const userId = parseInt(req.params.id);
+      const user = await storage.getUser(userId);
+
+      if (!user) {
+        return res.status(404).send("User not found");
+      }
+
+      console.log('Admin verification request:', {
+        userId,
+        currentUser: req.user?.username,
+        currentUserRole: req.user?.role
+      });
+
+      // Don't allow non-owners to modify owner accounts
+      if (user.role === 'owner' && req.user?.role !== 'owner') {
+        return res.status(403).send("Only owner can modify owner accounts");
+      }
+
+      const verified = req.body.verified;
+      if (typeof verified !== 'boolean') {
+        return res.status(400).send("Invalid verification status");
+      }
+
+      const updatedUser = await storage.updateUserProfile(userId, { verified });
+      console.log('Updated user verification:', updatedUser);
+      res.json(updatedUser);
+    } catch (error) {
+      console.error('Error updating user verification:', error);
+      res.status(500).send("Failed to update user verification");
+    }
+  });
+
   // Add a route to reset all roles
   app.post("/api/admin/reset-roles", isOwner, async (req, res) => {
     try {

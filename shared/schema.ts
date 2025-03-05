@@ -7,10 +7,11 @@ export const users = pgTable("users", {
   username: text("username").notNull().unique(),
   email: text("email").notNull().unique(),
   password: text("password").notNull(),
-  karma: integer("karma").notNull().default(5),
+  karma: integer("karma").notNull().default(0),
   emailVerified: boolean("email_verified").notNull().default(false),
   isAdmin: boolean("is_admin").notNull().default(false),
   role: text("role").notNull().default("user"),
+  verified: boolean("verified").notNull().default(false), // Added verified field
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -165,6 +166,7 @@ export const adminUpdateUserSchema = z.object({
   email: z.string().email("Please enter a valid email address").optional(),
   isAdmin: z.boolean().optional(),
   emailVerified: z.boolean().optional(),
+  verified: z.boolean().optional()
 });
 
 export const adminUpdateReportSchema = z.object({
