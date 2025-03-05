@@ -4,14 +4,16 @@ const f = createUploadthing();
 
 export const ourFileRouter = {
   imageUploader: f({ image: { maxFileSize: "4MB", maxFileCount: 1 } })
+    // Set validator for the file
     .middleware(async () => {
-      // This code runs on your server before upload
-      return { userId: "test" }; // Add user authentication here if needed
+      // Validate session if needed
+      return { uploadedBy: "user" };
     })
-    .onUploadComplete(({ metadata, file }) => {
-      // This code RUNS ON YOUR SERVER after upload
-      console.log("Upload complete for userId:", metadata.userId);
-      console.log("File URL:", file.url);
+    .onUploadComplete(async ({ metadata, file }) => {
+      console.log("Upload complete for", metadata.uploadedBy);
+      console.log("File URL", file.url);
+
+      return { url: file.url };
     }),
 } satisfies FileRouter;
 

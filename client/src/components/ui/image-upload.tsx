@@ -11,7 +11,7 @@ export function ImageUpload({ onUploadComplete }: ImageUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
 
   return (
-    <UploadButton<OurFileRouter, void>
+    <UploadButton<OurFileRouter, { uploadedBy: string }>
       endpoint="imageUploader"
       onUploadBegin={() => {
         setIsUploading(true);
