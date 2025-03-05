@@ -51,10 +51,15 @@ export default function ProfilePage() {
     mutationFn: async (file: File) => {
       const formData = new FormData();
       formData.append('avatar', file);
-      const res = await apiRequest("POST", "/api/profile/avatar", formData, {
-        // Override the default JSON content type
-        headers: {}
+      // Use fetch directly for file upload instead of apiRequest
+      const res = await fetch("/api/profile/avatar", {
+        method: "POST",
+        body: formData,
+        // Don't set any Content-Type header, let the browser handle it
       });
+      if (!res.ok) {
+        throw new Error(await res.text());
+      }
       return res.json();
     },
     onSuccess: () => {
