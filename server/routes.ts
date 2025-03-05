@@ -233,33 +233,7 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
     }
   });
 
-  // Add new routes for comment likes
-  app.post("/api/comments/:id/like", isAuthenticated, async (req, res) => {
-    try {
-      const commentId = parseInt(req.params.id);
-      const userId = req.user!.id;
-
-      const comment = await storage.getComment(commentId);
-      if (!comment) {
-        return res.status(404).send("Comment not found");
-      }
-
-      const isLiked = await storage.getUserCommentLike(userId, commentId);
-
-      if (isLiked) {
-        await storage.unlikeComment(userId, commentId);
-      } else {
-        await storage.likeComment(userId, commentId);
-      }
-
-      const likesCount = await storage.getCommentLikes(commentId);
-      res.json({ likes: likesCount, isLiked: !isLiked });
-    } catch (error) {
-      console.error('Error updating comment like:', error);
-      res.status(500).send("Failed to update comment like");
-    }
-  });
-
+  // Update the post reaction handler
   app.post("/api/posts/:id/react", isAuthenticated, async (req, res) => {
     try {
       const postId = parseInt(req.params.id);
@@ -270,20 +244,37 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
         return res.status(400).send("Invalid reaction type");
       }
 
-      const currentReaction = await storage.getUserPostReaction(userId, postId);
+      const post = await storage.getPost(postId);
+      if (!post) return res.status(404).send("Post not found");
 
-      // Remove existing reaction if it exists
+      const currentReaction = await storage.getUserPostReaction(userId, postId);
+      const postAuthor = await storage.getUser(post.authorId);
+
+      if (!postAuthor) {
+        return res.status(404).send("Post author not found");
+      }
+
+      // Calculate reputation change
+      let reputationChange = 0;
+
+      // Remove reputation impact of previous reaction if it exists
       if (currentReaction !== null) {
+        reputationChange += currentReaction.isLike ? -1 : 1; // Remove previous impact
         await storage.removePostReaction(userId, postId);
       }
 
-      // Add new reaction if it's different from the current one
+      // Add reputation impact of new reaction if different from current
       if (currentReaction === null || currentReaction.isLike !== isLike) {
+        reputationChange += isLike ? 1 : -1; // Add new impact
         await storage.createPostLike(userId, postId, isLike);
       }
 
-      const post = await storage.getPost(postId);
-      if (!post) return res.status(404).send("Post not found");
+      // Update author's reputation if there's a change
+      if (reputationChange !== 0) {
+        await storage.updateUserProfile(postAuthor.id, {
+          karma: postAuthor.karma + reputationChange
+        });
+      }
 
       const reactions = await storage.getPostReactions(postId);
       const userReaction = await storage.getUserPostReaction(userId, postId);
@@ -292,6 +283,46 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
     } catch (error) {
       console.error('Error updating reaction:', error);
       res.status(500).send("Failed to update reaction");
+    }
+  });
+
+  // Update the comment like handler
+  app.post("/api/comments/:id/like", isAuthenticated, async (req, res) => {
+    try {
+      const commentId = parseInt(req.params.id);
+      const userId = req.user!.id;
+
+      const comment = await storage.getComment(commentId);
+      if (!comment) {
+        return res.status(404).send("Comment not found");
+      }
+
+      const commentAuthor = await storage.getUser(comment.authorId);
+      if (!commentAuthor) {
+        return res.status(404).send("Comment author not found");
+      }
+
+      const isLiked = await storage.getUserCommentLike(userId, commentId);
+
+      if (isLiked) {
+        await storage.unlikeComment(userId, commentId);
+        // Decrease author's reputation when unlike
+        await storage.updateUserProfile(commentAuthor.id, {
+          karma: commentAuthor.karma - 1
+        });
+      } else {
+        await storage.likeComment(userId, commentId);
+        // Increase author's reputation when like
+        await storage.updateUserProfile(commentAuthor.id, {
+          karma: commentAuthor.karma + 1
+        });
+      }
+
+      const likesCount = await storage.getCommentLikes(commentId);
+      res.json({ likes: likesCount, isLiked: !isLiked });
+    } catch (error) {
+      console.error('Error updating comment like:', error);
+      res.status(500).send("Failed to update comment like");
     }
   });
 
@@ -876,7 +907,7 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
         }
 
         // For non-ban updates
-        const updatedUser = await storage.updateUserProfile(userId, req.body);
+        const updatedUser = await storage.updateUserProfile(userId, reqreq.body);
         console.log('Updated user:', updatedUser);
         res.json(updatedUser);
       }
