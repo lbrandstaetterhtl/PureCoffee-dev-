@@ -30,7 +30,25 @@ async function comparePasswords(supplied: string, stored: string) {
   return timingSafeEqual(hashedBuf, suppliedBuf);
 }
 
-export function setupAuth(app: Express, sessionParser: any) {
+function generateVerificationToken(): string {
+  return randomBytes(32).toString("hex");
+}
+
+async function createVerificationToken(userId: number): Promise<string> {
+  const token = generateVerificationToken();
+  const expiresAt = new Date();
+  expiresAt.setHours(expiresAt.getHours() + 24); // Token expires in 24 hours
+
+  await storage.createVerificationToken({
+    token,
+    userId,
+    expiresAt,
+  });
+
+  return token;
+}
+
+export function setupAuth(app: Express, sessionParser: session.RequestHandler) {
   app.set("trust proxy", 1);
   app.use(sessionParser);
   app.use(passport.initialize());
@@ -51,7 +69,7 @@ export function setupAuth(app: Express, sessionParser: any) {
           return done(null, false, { message: "Invalid username or password" });
         }
 
-        console.log("Login successful for user:", username, "Avatar URL:", user.avatarUrl);
+        console.log("Login successful for user:", username);
         return done(null, user);
       } catch (err) {
         console.error("Login error:", err);
@@ -61,41 +79,21 @@ export function setupAuth(app: Express, sessionParser: any) {
   );
 
   passport.serializeUser((user, done) => {
-    console.log("Serializing user:", user.id, "Avatar URL:", user.avatarUrl);
     done(null, user.id);
   });
 
   passport.deserializeUser(async (id: number, done) => {
     try {
-      console.log("Deserializing user:", id);
       const user = await storage.getUser(id);
       if (!user) {
         console.log("Session invalid: User not found:", id);
         return done(null, false);
       }
-      console.log("Deserialized user:", {
-        id: user.id,
-        username: user.username,
-        avatarUrl: user.avatarUrl
-      });
       done(null, user);
     } catch (err) {
       console.error("Session error:", err);
       done(err);
     }
-  });
-
-  app.get("/api/user", (req, res) => {
-    if (!req.isAuthenticated()) {
-      console.log("Unauthenticated access attempt to /api/user");
-      return res.sendStatus(401);
-    }
-    console.log("User data requested. User:", {
-      id: req.user?.id,
-      username: req.user?.username,
-      avatarUrl: req.user?.avatarUrl
-    });
-    res.json(req.user);
   });
 
   app.post("/api/register", async (req, res) => {
@@ -130,7 +128,7 @@ export function setupAuth(app: Express, sessionParser: any) {
         console.log('SendGrid API key not properly configured - skipping verification email');
       }
 
-      // Log the user in with the complete user object including avatarUrl
+      // Log the user in
       req.login(user, (err) => {
         if (err) return res.status(500).send(err.message);
         res.status(201).json(user);
@@ -148,7 +146,7 @@ export function setupAuth(app: Express, sessionParser: any) {
 
       req.login(user, (err) => {
         if (err) return next(err);
-        console.log("User logged in successfully:", user.username, "with avatar:", user.avatarUrl);
+        console.log("User logged in successfully:", user.username);
         res.json(user);
       });
     })(req, res, next);
@@ -166,7 +164,16 @@ export function setupAuth(app: Express, sessionParser: any) {
     });
   });
 
+  app.get("/api/user", (req, res) => {
+    if (!req.isAuthenticated()) {
+      console.log("Unauthenticated access attempt to /api/user");
+      return res.sendStatus(401);
+    }
+    console.log("User data requested for:", req.user?.username);
+    res.json(req.user);
+  });
 
+  // Add profile update endpoints
   app.patch("/api/profile", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
@@ -188,12 +195,7 @@ export function setupAuth(app: Express, sessionParser: any) {
     }
 
     const updatedUser = await storage.updateUserProfile(req.user!.id, result.data);
-
-    // Force session update with new user data
-    req.login(updatedUser, (err) => {
-      if (err) return res.status(500).send(err.message);
-      res.json(updatedUser);
-    });
+    res.json(updatedUser);
   });
 
   app.patch("/api/profile/password", async (req, res) => {

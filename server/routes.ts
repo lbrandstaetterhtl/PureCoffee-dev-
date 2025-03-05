@@ -6,58 +6,13 @@ import multer from "multer";
 import path from "path";
 import express from "express";
 import { WebSocketServer, WebSocket } from 'ws';
-import fs from 'fs';
+import { insertDiscussionPostSchema, insertMediaPostSchema, insertCommentSchema, insertReportSchema, messageSchema } from "@shared/schema";
+import type { Knex } from 'knex';
 import session from 'express-session';
-
-
-// Create uploads directory with proper permissions
-const UPLOAD_DIR = path.join(process.cwd(), "uploads");
-const AVATAR_UPLOAD_DIR = path.join(UPLOAD_DIR, "avatars");
-if (!fs.existsSync(AVATAR_UPLOAD_DIR)) {
-  fs.mkdirSync(AVATAR_UPLOAD_DIR, { recursive: true });
-  // Set directory permissions to be readable by all
-  fs.chmodSync(AVATAR_UPLOAD_DIR, 0o755);
-}
-
-// Configure multer for avatar uploads
-const avatarUpload = multer({
-  storage: multer.diskStorage({
-    destination: AVATAR_UPLOAD_DIR,
-    filename: function (req, file, cb) {
-      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-      const filename = 'avatar-' + uniqueSuffix + path.extname(file.originalname);
-      console.log('Generating filename for avatar:', filename);
-      cb(null, filename);
-    }
-  }),
-  fileFilter: (req, file, cb) => {
-    console.log('Checking file type:', file.mimetype);
-    const allowedTypes = ["image/jpeg", "image/png", "image/gif"];
-    if (allowedTypes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error("Invalid file type. Only JPEG, PNG and GIF are allowed."));
-    }
-  },
-  limits: {
-    fileSize: 1024 * 1024 // 1MB limit
-  }
-});
-
-// Middleware to handle multer errors
-const handleMulterError = (err: any, req: any, res: any, next: any) => {
-  if (err instanceof multer.MulterError) {
-    if (err.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({ error: 'File size is too large. Maximum size is 1MB.' });
-    }
-    return res.status(400).json({ error: err.message });
-  }
-  next(err);
-};
+import { sql } from 'drizzle-orm';
 
 // WebSocket connections store
 const connections = new Map<number, WebSocket>();
-
 
 // Update the isAdmin middleware to check role
 const isAdmin = (req: any, res: any, next: any) => {
@@ -94,8 +49,7 @@ const upload = multer({
   }
 });
 
-
-export async function registerRoutes(app: Express, db: any): Promise<Server> {
+export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Promise<Server> {
   // Create HTTP server
   const httpServer = createServer(app);
 
@@ -118,17 +72,6 @@ export async function registerRoutes(app: Express, db: any): Promise<Server> {
     if (req.isAuthenticated()) return next();
     res.status(401).send("Unauthorized");
   };
-
-  // Serve uploaded files - place this before other routes
-  app.use("/uploads", express.static(UPLOAD_DIR, {
-    setHeaders: (res, filepath) => {
-      res.set('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
-      res.set('Access-Control-Allow-Origin', '*'); // Allow access from any origin
-    }
-  }));
-
-  // Use multer error handling middleware
-  app.use(handleMulterError);
 
   // Setup WebSocket server
   const wss = new WebSocketServer({
@@ -161,6 +104,8 @@ export async function registerRoutes(app: Express, db: any): Promise<Server> {
     });
   });
 
+  // Serve uploaded files
+  app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
   // Posts
   app.get("/api/posts", async (req, res) => {
@@ -288,55 +233,6 @@ export async function registerRoutes(app: Express, db: any): Promise<Server> {
     } catch (error) {
       console.error('Error creating comment:', error);
       res.status(500).send("Failed to create comment");
-    }
-  });
-
-  // Update the profile route to handle avatar uploads
-  app.patch("/api/profile", isAuthenticated, avatarUpload.single('avatarFile'), async (req, res) => {
-    try {
-      console.log('Profile update request received:', { 
-        body: req.body, 
-        file: req.file 
-      });
-
-      const updateData: Partial<{ username: string; email: string; avatarUrl: string; isAdmin: boolean; role: string; emailVerified: boolean; verified: boolean }> = {};
-
-      if (req.body.username) updateData.username = req.body.username;
-      if (req.body.email) updateData.email = req.body.email;
-
-      // Handle avatar file upload
-      if (req.file) {
-        // Set proper file permissions
-        fs.chmodSync(req.file.path, 0o644);
-
-        // Create absolute URL for the avatar
-        const avatarUrl = `/uploads/avatars/${req.file.filename}`;
-        updateData.avatarUrl = avatarUrl;
-        console.log('Setting avatar URL:', avatarUrl);
-      }
-
-      console.log('Updating profile with data:', updateData);
-
-      const updatedUser = await storage.updateUserProfile(req.user!.id, updateData);
-      console.log('User updated in database:', updatedUser);
-
-      // Double-check the update was successful
-      const verifiedUser = await storage.getUser(req.user!.id);
-      console.log('Verified user after update:', verifiedUser);
-
-      // Update the user in session
-      req.login(updatedUser, (err) => {
-        if (err) {
-          console.error('Error updating session:', err);
-          return res.status(500).send("Failed to update session");
-        }
-        console.log('Session updated with new user data:', updatedUser);
-        res.json(updatedUser);
-      });
-
-    } catch (error) {
-      console.error('Error updating profile:', error);
-      res.status(500).send("Failed to update profile");
     }
   });
 
@@ -578,6 +474,31 @@ export async function registerRoutes(app: Express, db: any): Promise<Server> {
     } catch (error) {
       console.error('Error updating report:', error);
       res.status(500).send("Failed to update report status");
+    }
+  });
+
+  // Updated profile route
+  app.patch("/api/profile", isAuthenticated, async (req, res) => {
+    try {
+      const updateData: Partial<{ username: string; email: string; role: string }> = {};
+
+      if (req.body.username) {
+        updateData.username = req.body.username;
+      }
+
+      if (req.body.email) {
+        updateData.email = req.body.email;
+      }
+
+      if (req.body.role) {
+        updateData.role = req.body.role;
+      }
+
+      const updatedUser = await storage.updateUserProfile(req.user!.id, updateData);
+      res.json(updatedUser);
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      res.status(500).send("Failed to update profile");
     }
   });
 
@@ -932,9 +853,11 @@ export async function registerRoutes(app: Express, db: any): Promise<Server> {
   });
 
   // Add this route in the existing routes file, after other user-related routes
+
   app.get("/api/admin/users", isAdmin, async (req, res) => {
-    try{
-      const users = await storage.getUsers(); // Use storage interface      res.json(users);
+    try {
+      const users = await storage.getUsers(); // Use storage interface
+      res.json(users);
     } catch (error) {
       console.error('Error fetching users:', error);
       res.status(500).send("Failed to fetch users");
@@ -986,8 +909,7 @@ export async function registerRoutes(app: Express, db: any): Promise<Server> {
           },
           content: reportedContent ? {
             type: contentType,
-            title: contentType === 'comment' ? null : reportedContent.title,
-            content: reportedContent.content
+            title: contentType === 'comment' ? null : reportedContent.title,            content: reportedContent.content
           } : null
         };
 
@@ -1113,28 +1035,6 @@ export async function registerRoutes(app: Express, db: any): Promise<Server> {
     } catch (error) {
       console.error('Error resetting roles:', error);
       res.status(500).send("Failed to reset roles");
-    }
-  });
-
-  // Admin route to reset all karma
-  app.post("/api/admin/reset-karma", isAdmin, async (req, res) => {
-    try {
-      await storage.resetAllKarma();
-      res.sendStatus(200);
-    } catch (error) {
-      console.error('Error resetting karma:', error);
-      res.status(500).send("Failed to reset karma");
-    }
-  });
-
-  // Admin route to delete all posts
-  app.post("/api/admin/delete-all-posts", isAdmin, async (req, res) => {
-    try {
-      await storage.deleteAllPosts();
-      res.sendStatus(200);
-    } catch (error) {
-      console.error('Error deleting posts:', error);
-      res.status(500).send("Failed to delete posts");
     }
   });
 

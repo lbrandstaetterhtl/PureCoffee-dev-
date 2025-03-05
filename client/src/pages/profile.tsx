@@ -23,13 +23,11 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Loader2, Trophy, ImageIcon } from "lucide-react";
-import { useState } from "react";
+import { Loader2, UserPlus, UserMinus, Trophy } from "lucide-react";
 
 export default function ProfilePage() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 
   const { data: followers } = useQuery({
     queryKey: ["/api/followers"],
@@ -46,6 +44,34 @@ export default function ProfilePage() {
       const res = await fetch("/api/following");
       if (!res.ok) throw new Error("Failed to fetch following");
       return res.json();
+    },
+  });
+
+  const followMutation = useMutation({
+    mutationFn: async (userId: number) => {
+      const res = await apiRequest("POST", `/api/follow/${userId}`);
+      if (!res.ok) throw new Error(await res.text());
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/following"] });
+      toast({
+        title: "Success",
+        description: "User followed successfully",
+      });
+    },
+  });
+
+  const unfollowMutation = useMutation({
+    mutationFn: async (userId: number) => {
+      const res = await apiRequest("DELETE", `/api/follow/${userId}`);
+      if (!res.ok) throw new Error(await res.text());
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/following"] });
+      toast({
+        title: "Success",
+        description: "User unfollowed successfully",
+      });
     },
   });
 
@@ -68,26 +94,11 @@ export default function ProfilePage() {
 
   const updateProfileMutation = useMutation({
     mutationFn: async (data: UpdateProfile) => {
-      const formData = new FormData();
-      if (data.username) formData.append("username", data.username);
-      if (data.email) formData.append("email", data.email);
-      if (data.avatarFile) formData.append("avatarFile", data.avatarFile);
-
-      const res = await fetch("/api/profile", {
-        method: "PATCH",
-        body: formData,
-      });
-
-      if (!res.ok) throw new Error(await res.text());
+      const res = await apiRequest("PATCH", "/api/profile", data);
       return res.json();
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
-      // Update the local user data in useAuth
-      if (window.location) {
-        window.location.reload(); // Force reload to update session
-      }
-      setAvatarPreview(null);
       toast({
         title: "Profile updated",
         description: "Your profile has been updated successfully.",
@@ -105,7 +116,6 @@ export default function ProfilePage() {
   const updatePasswordMutation = useMutation({
     mutationFn: async (data: UpdatePassword) => {
       const res = await apiRequest("PATCH", "/api/profile/password", data);
-      if (!res.ok) throw new Error(await res.text());
       return res.json();
     },
     onSuccess: () => {
@@ -124,64 +134,13 @@ export default function ProfilePage() {
     },
   });
 
-  const handleAvatarChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      if (file.size > 1024 * 1024) { // 1MB limit
-        toast({
-          title: "Error",
-          description: "Avatar file size must be less than 1MB",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      if (!file.type.startsWith('image/')) {
-        toast({
-          title: "Error",
-          description: "Please upload an image file",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setAvatarPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-      profileForm.setValue("avatarFile", file);
-    }
-  };
-
   return (
     <>
       <Navbar />
       <main className="container mx-auto px-4 pt-24">
         <div className="max-w-2xl mx-auto space-y-8">
           <div className="flex items-center gap-4">
-            <div className="relative">
-              <UserAvatar 
-                user={{ 
-                  username: user?.username || '', 
-                  avatarUrl: avatarPreview || user?.avatarUrl 
-                }} 
-                size="lg" 
-              />
-              <label 
-                htmlFor="avatar-upload" 
-                className="absolute bottom-0 right-0 p-1 bg-primary text-primary-foreground rounded-full cursor-pointer hover:opacity-90"
-              >
-                <ImageIcon className="h-4 w-4" />
-                <input
-                  id="avatar-upload"
-                  type="file"
-                  className="hidden"
-                  accept="image/*"
-                  onChange={handleAvatarChange}
-                />
-              </label>
-            </div>
+            <UserAvatar user={{ username: user?.username || '' }} size="lg" />
             <div>
               <h1 className="text-4xl font-bold">Profile Settings</h1>
               <div className="flex gap-4 mt-2">
@@ -194,6 +153,64 @@ export default function ProfilePage() {
               </div>
             </div>
           </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Followers</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {followers?.map((follower) => (
+                  <div key={follower.id} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <UserAvatar user={follower} size="sm" />
+                      <span>{follower.username}</span>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => followMutation.mutate(follower.id)}
+                    >
+                      <UserPlus className="h-4 w-4 mr-2" />
+                      Follow Back
+                    </Button>
+                  </div>
+                ))}
+                {!followers?.length && (
+                  <p className="text-muted-foreground text-center">No followers yet</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Following</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {following?.map((followed) => (
+                  <div key={followed.id} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <UserAvatar user={followed} size="sm" />
+                      <span>{followed.username}</span>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => unfollowMutation.mutate(followed.id)}
+                    >
+                      <UserMinus className="h-4 w-4 mr-2" />
+                      Unfollow
+                    </Button>
+                  </div>
+                ))}
+                {!following?.length && (
+                  <p className="text-muted-foreground text-center">Not following anyone yet</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
 
           <Card>
             <CardHeader>
