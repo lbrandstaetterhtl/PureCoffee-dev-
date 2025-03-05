@@ -234,7 +234,7 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
     }
   });
 
-  // Update the post reaction handler
+  // Update the post reaction handler to use proper SQL updates
   app.post("/api/posts/:id/react", isAuthenticated, async (req, res) => {
     try {
       const postId = parseInt(req.params.id);
@@ -272,15 +272,24 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
 
       // Update author's reputation if there's a change
       if (reputationChange !== 0) {
-        // Execute direct SQL update for karma
-        await db.raw(sql`UPDATE users SET karma = karma + ${reputationChange} WHERE id = ${postAuthor.id}`);
+        try {
+          await db.execute(sql`
+            UPDATE users 
+            SET karma = karma + ${reputationChange} 
+            WHERE id = ${postAuthor.id}
+          `);
+          console.log(`Updated karma for user ${postAuthor.id} by ${reputationChange}`);
+        } catch (error) {
+          console.error('Error updating karma:', error);
+          throw error;
+        }
       }
 
       const reactions = await storage.getPostReactions(postId);
       const userReaction = await storage.getUserPostReaction(userId, postId);
 
       const updatedAuthor = await storage.getUser(postAuthor.id);
-      console.log('Updated author karma:', updatedAuthor?.karma); // Debug log
+      console.log('Updated author karma:', updatedAuthor?.karma);
 
       res.json({ ...post, reactions, userReaction });
     } catch (error) {
@@ -289,7 +298,7 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
     }
   });
 
-  // Update the comment like handler
+  // Update the comment like handler to use proper SQL updates
   app.post("/api/comments/:id/like", isAuthenticated, async (req, res) => {
     try {
       const commentId = parseInt(req.params.id);
@@ -307,19 +316,32 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
 
       const isLiked = await storage.getUserCommentLike(userId, commentId);
 
-      if (isLiked) {
-        await storage.unlikeComment(userId, commentId);
-        // Execute direct SQL update for karma
-        await db.raw(sql`UPDATE users SET karma = karma - 1 WHERE id = ${commentAuthor.id}`);
-      } else {
-        await storage.likeComment(userId, commentId);
-        // Execute direct SQL update for karma
-        await db.raw(sql`UPDATE users SET karma = karma + 1 WHERE id = ${commentAuthor.id}`);
+      try {
+        if (isLiked) {
+          await storage.unlikeComment(userId, commentId);
+          await db.execute(sql`
+            UPDATE users 
+            SET karma = karma - 1 
+            WHERE id = ${commentAuthor.id}
+          `);
+          console.log(`Decreased karma for user ${commentAuthor.id}`);
+        } else {
+          await storage.likeComment(userId, commentId);
+          await db.execute(sql`
+            UPDATE users 
+            SET karma = karma + 1 
+            WHERE id = ${commentAuthor.id}
+          `);
+          console.log(`Increased karma for user ${commentAuthor.id}`);
+        }
+      } catch (error) {
+        console.error('Error updating karma:', error);
+        throw error;
       }
 
       const likesCount = await storage.getCommentLikes(commentId);
       const updatedAuthor = await storage.getUser(commentAuthor.id);
-      console.log('Updated author karma:', updatedAuthor?.karma); // Debug log
+      console.log('Updated author karma:', updatedAuthor?.karma);
 
       res.json({ likes: likesCount, isLiked: !isLiked });
     } catch (error) {
