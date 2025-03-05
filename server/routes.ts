@@ -49,6 +49,28 @@ const upload = multer({
   }
 });
 
+// Add multer configuration for avatar uploads
+const avatarUpload = multer({
+  storage: multer.diskStorage({
+    destination: "./uploads/avatars",
+    filename: function (req, file, cb) {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      cb(null, 'avatar-' + uniqueSuffix + path.extname(file.originalname));
+    }
+  }),
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ["image/jpeg", "image/png", "image/gif"];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error("Invalid file type. Only JPEG, PNG and GIF are allowed."));
+    }
+  },
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  }
+});
+
 export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Promise<Server> {
   // Create HTTP server
   const httpServer = createServer(app);
@@ -478,7 +500,7 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
   // Updated profile route
   app.patch("/api/profile", isAuthenticated, async (req, res) => {
     try {
-      const updateData: Partial<{ username: string; email: string; role: string }> = {};
+      const updateData: Partial<{ username: string; email: string; role: string; avatarUrl: string }> = {};
 
       if (req.body.username) {
         updateData.username = req.body.username;
@@ -500,6 +522,27 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
     }
   });
 
+
+  // Add profile picture upload endpoint
+  app.post("/api/profile/avatar", isAuthenticated, avatarUpload.single('avatar'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).send("No file uploaded");
+      }
+
+      const avatarUrl = `/uploads/avatars/${req.file.filename}`;
+
+      // Update user profile with new avatar URL
+      const updatedUser = await storage.updateUserProfile(req.user!.id, {
+        avatarUrl
+      });
+
+      res.json(updatedUser);
+    } catch (error) {
+      console.error('Error uploading avatar:', error);
+      res.status(500).send("Failed to upload avatar");
+    }
+  });
 
   // Followers
   app.post("/api/follow/:userId", isAuthenticated, async (req, res) => {
@@ -801,7 +844,8 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
         username: user.username,
         karma: user.karma,
         createdAt: user.createdAt,
-        role: user.role
+        role: user.role,
+        avatarUrl: user.avatarUrl
       };
 
       console.log('Returning user data:', safeUser);

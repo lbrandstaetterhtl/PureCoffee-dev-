@@ -23,7 +23,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Loader2, UserPlus, UserMinus, Trophy } from "lucide-react";
+import { Loader2, UserPlus, UserMinus, Trophy, Camera } from "lucide-react";
 
 export default function ProfilePage() {
   const { user } = useAuth();
@@ -44,6 +44,32 @@ export default function ProfilePage() {
       const res = await fetch("/api/following");
       if (!res.ok) throw new Error("Failed to fetch following");
       return res.json();
+    },
+  });
+
+  const avatarMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append('avatar', file);
+      const res = await apiRequest("POST", "/api/profile/avatar", formData, {
+        // Override the default JSON content type
+        headers: {}
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+      toast({
+        title: "Avatar updated",
+        description: "Your profile picture has been updated successfully.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Update failed",
+        description: error.message,
+        variant: "destructive",
+      });
     },
   });
 
@@ -134,13 +160,55 @@ export default function ProfilePage() {
     },
   });
 
+  const handleAvatarChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast({
+          title: "File too large",
+          description: "Please select an image under 5MB",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (!['image/jpeg', 'image/png', 'image/gif'].includes(file.type)) {
+        toast({
+          title: "Invalid file type",
+          description: "Please select a JPEG, PNG or GIF image",
+          variant: "destructive",
+        });
+        return;
+      }
+      avatarMutation.mutate(file);
+    }
+  };
+
   return (
     <>
       <Navbar />
       <main className="container mx-auto px-4 pt-24">
         <div className="max-w-2xl mx-auto space-y-8">
           <div className="flex items-center gap-4">
-            <UserAvatar user={{ username: user?.username || '' }} size="lg" />
+            <div className="relative">
+              <UserAvatar user={{ username: user?.username || '', avatarUrl: user?.avatarUrl }} size="lg" />
+              <Input
+                type="file"
+                accept="image/jpeg,image/png,image/gif"
+                className="hidden"
+                id="avatar-upload"
+                onChange={handleAvatarChange}
+              />
+              <label
+                htmlFor="avatar-upload"
+                className="absolute bottom-0 right-0 p-1 bg-primary rounded-full cursor-pointer hover:opacity-90 transition-opacity"
+              >
+                {avatarMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-primary-foreground" />
+                ) : (
+                  <Camera className="h-4 w-4 text-primary-foreground" />
+                )}
+              </label>
+            </div>
             <div>
               <h1 className="text-4xl font-bold">Profile Settings</h1>
               <div className="flex gap-4 mt-2">
