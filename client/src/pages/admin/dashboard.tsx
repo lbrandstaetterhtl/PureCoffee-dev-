@@ -265,7 +265,7 @@ export default function AdminDashboard() {
                                     {u.username}
                                   </Link>
                                   {u.verified && (
-                                    <BadgeCheck className="h-4 w-4 text-blue-500" />
+                                    <BadgeCheck className="h-5 w-5 text-blue-500" />
                                   )}
                                 </div>
                               </div>
@@ -278,7 +278,7 @@ export default function AdminDashboard() {
                                 </Badge>
                                 {u.verified && (
                                   <Badge variant="default" className="bg-blue-500">
-                                    <BadgeCheck className="h-4 w-4 mr-1" />
+                                    <BadgeCheck className="h-5 w-5 mr-1" />
                                     Verified
                                   </Badge>
                                 )}
