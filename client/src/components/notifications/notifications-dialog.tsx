@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Button } from "@/components/ui/button";
-import { Bell, MessageCircle, Loader2, Heart, ThumbsUp } from "lucide-react";
+import { Bell, Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useLocation } from "wouter";
 
@@ -54,30 +54,12 @@ export function NotificationsDialog() {
   // Calculate unread notifications count
   const unreadCount = notifications?.filter(n => !n.read).length || 0;
 
-  const getNotificationIcon = (type: string) => {
-    switch (type) {
-      case "new_comment":
-        return <MessageCircle className="h-4 w-4" />;
-      case "comment_like":
-        return <Heart className="h-4 w-4" />;
-      case "post_like":
-        return <ThumbsUp className="h-4 w-4" />;
-      default:
-        return <Bell className="h-4 w-4" />;
-    }
-  };
-
   const handleNotificationClick = (notification: NotificationWithUser) => {
-    // Navigate to the relevant post/comment
     if (notification.postId) {
-      // Close dialog before navigation
       setOpen(false);
-      // Mark as read
       if (!notification.read) {
         markAsReadMutation.mutate(notification.id);
       }
-      // Navigate to the post
-      // Note: You might need to adjust this path based on your routing structure
       setLocation(`/post/${notification.postId}`);
     }
   };
@@ -111,20 +93,17 @@ export function NotificationsDialog() {
             {notifications?.map((notification) => (
               <div
                 key={notification.id}
-                className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer hover:bg-muted/70 transition-colors ${
-                  notification.read ? "bg-muted/50" : "bg-muted"
+                className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors hover:bg-accent ${
+                  !notification.read ? "bg-accent/50" : ""
                 }`}
                 onClick={() => handleNotificationClick(notification)}
               >
                 <UserAvatar user={{ username: notification.fromUser.username }} size="sm" />
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    {getNotificationIcon(notification.type)}
-                    <p className="text-sm">
-                      {notification.message}
-                    </p>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-sm leading-tight">
+                    {notification.message}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
                     {format(new Date(notification.createdAt), "PPp")}
                   </p>
                 </div>
