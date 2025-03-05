@@ -688,6 +688,20 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
         return res.status(403).send("You don't have permission to delete this post");
       }
 
+      // Calculate reputation impact from post reactions
+      const reactions = await storage.getPostReactions(postId);
+      const reputationChange = -(reactions.likes - reactions.dislikes); // Subtract likes-dislikes from reputation
+
+      if (reputationChange !== 0) {
+        // Ensure karma doesn't go below 0
+        await db.execute(sql`
+          UPDATE users 
+          SET karma = GREATEST(0, karma + ${reputationChange})
+          WHERE id = ${targetUser.id}
+        `);
+        console.log(`Updated karma for user ${targetUser.id} by ${reputationChange} due to post deletion`);
+      }
+
       // Delete associated comments
       await storage.deleteComments(postId);
 
@@ -732,6 +746,18 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
 
       if (!canDelete) {
         return res.status(403).send("You don't have permission to delete this comment");
+      }
+
+      // Calculate reputation impact from comment likes
+      const likes = await storage.getCommentLikes(commentId);
+      if (likes > 0) {
+        // Ensure karma doesn't go below 0
+        await db.execute(sql`
+          UPDATE users 
+          SET karma = GREATEST(0, karma - ${likes})
+          WHERE id = ${targetUser.id}
+        `);
+        console.log(`Updated karma for user ${targetUser.id} by -${likes} due to comment deletion`);
       }
 
       await storage.deleteComment(commentId);
