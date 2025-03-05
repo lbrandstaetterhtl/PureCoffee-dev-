@@ -151,7 +151,7 @@ export default function AdminDashboard() {
 
         await updateUserMutation.mutateAsync({
           userId,
-          data: { 
+          data: {
             verified: !currentVerified,
             // Include role and isAdmin to prevent accidental role changes
             role: users?.find(u => u.id === userId)?.role,
@@ -256,14 +256,18 @@ export default function AdminDashboard() {
                               <div className="flex items-center gap-2">
                                 <UserAvatar
                                   user={{
-                                    username: u.username,
-                                    verified: u.verified
+                                    username: u.username
                                   }}
                                   size="sm"
                                 />
-                                <Link href={`/users/${u.username}`} className="hover:underline">
-                                  {u.username}
-                                </Link>
+                                <div className="flex items-center gap-1">
+                                  <Link href={`/users/${u.username}`} className="hover:underline">
+                                    {u.username}
+                                  </Link>
+                                  {u.verified && (
+                                    <BadgeCheck className="h-4 w-4 text-blue-500" />
+                                  )}
+                                </div>
                               </div>
                             </TableCell>
                             <TableCell>{u.email}</TableCell>
