@@ -33,6 +33,7 @@ import {
 import { useState } from "react";
 import { Link } from "wouter";
 import { UserAvatar } from "@/components/ui/user-avatar";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // Extended Report type to include additional fields
 interface ExtendedReport extends Report {
@@ -56,6 +57,61 @@ interface DashboardStats {
   pendingReports: number;
   resolvedReports: number;
 }
+
+// Add new component for stats card skeleton
+const StatCardSkeleton = () => (
+  <Card>
+    <CardHeader className="space-y-2">
+      <div className="h-4 w-1/2">
+        <Skeleton className="h-full w-full" />
+      </div>
+      <div className="h-8 w-3/4">
+        <Skeleton className="h-full w-full" />
+      </div>
+    </CardHeader>
+  </Card>
+);
+
+// Add new component for user row skeleton
+const UserRowSkeleton = () => (
+  <TableRow>
+    <TableCell>
+      <div className="flex items-center gap-2">
+        <Skeleton className="h-8 w-8 rounded-full" />
+        <Skeleton className="h-4 w-24" />
+      </div>
+    </TableCell>
+    <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+    <TableCell><Skeleton className="h-6 w-24" /></TableCell>
+    <TableCell><Skeleton className="h-6 w-16" /></TableCell>
+    <TableCell><Skeleton className="h-6 w-24" /></TableCell>
+    <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+    <TableCell>
+      <div className="flex gap-2">
+        <Skeleton className="h-8 w-24" />
+        <Skeleton className="h-8 w-24" />
+      </div>
+    </TableCell>
+  </TableRow>
+);
+
+// Add new component for report row skeleton
+const ReportRowSkeleton = () => (
+  <TableRow>
+    <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+    <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+    <TableCell><Skeleton className="h-4 w-48" /></TableCell>
+    <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+    <TableCell><Skeleton className="h-6 w-20" /></TableCell>
+    <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+    <TableCell>
+      <div className="flex gap-2">
+        <Skeleton className="h-8 w-8" />
+        <Skeleton className="h-8 w-8" />
+      </div>
+    </TableCell>
+  </TableRow>
+);
 
 export default function AdminDashboard() {
   const { user } = useAuth();
@@ -260,12 +316,7 @@ export default function AdminDashboard() {
           {statsLoading ? (
             <div className="grid gap-4 md:grid-cols-4 mb-8">
               {[...Array(8)].map((_, i) => (
-                <Card key={i} className="animate-pulse">
-                  <CardHeader className="space-y-2">
-                    <div className="h-4 bg-muted rounded w-1/2" />
-                    <div className="h-8 bg-muted rounded w-3/4" />
-                  </CardHeader>
-                </Card>
+                <StatCardSkeleton key={i} />
               ))}
             </div>
           ) : (
@@ -398,14 +449,33 @@ export default function AdminDashboard() {
                 </CardHeader>
                 <CardContent className="p-0">
                   {usersLoading ? (
-                    <div className="flex justify-center py-8">
-                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <div className="relative overflow-hidden rounded-b-lg">
+                      <div className="overflow-auto h-[600px]">
+                        <Table>
+                          <TableHeader className="sticky top-0 bg-card z-20 border-b">
+                            <TableRow>
+                              <TableHead className="w-[200px]">Username</TableHead>
+                              <TableHead className="w-[200px]">Email</TableHead>
+                              <TableHead className="w-[200px]">Status</TableHead>
+                              <TableHead className="w-[100px]">Role</TableHead>
+                              <TableHead className="w-[150px]">Karma</TableHead>
+                              <TableHead className="w-[200px]">Joined</TableHead>
+                              <TableHead className="sticky right-0 bg-card w-[400px] z-20">Actions</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {[...Array(10)].map((_, i) => (
+                              <UserRowSkeleton key={i} />
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
                     </div>
                   ) : (
                     <div className="relative overflow-hidden rounded-b-lg">
                       <div className="overflow-auto h-[600px]">
                         <Table>
-                          <TableHeader className="sticky top-0 bg-card z-20 border-b"> {/*Added z-index*/}
+                          <TableHeader className="sticky top-0 bg-card z-20 border-b">
                             <TableRow>
                               <TableHead className="w-[200px]">Username</TableHead>
                               <TableHead className="w-[200px]">Email</TableHead>
@@ -598,7 +668,7 @@ export default function AdminDashboard() {
               </Card>
             </TabsContent>
 
-            <TabsContent value="reports" style={{position: 'relative', zIndex: 1}}> {/*Added style for new stacking context*/}
+            <TabsContent value="reports" style={{position: 'relative', zIndex: 1}}>
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle>Content Reports</CardTitle>
@@ -628,14 +698,33 @@ export default function AdminDashboard() {
                 </CardHeader>
                 <CardContent className="p-0">
                   {reportsLoading ? (
-                    <div className="flex justify-center py-8">
-                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <div className="relative overflow-hidden rounded-b-lg">
+                      <div className="overflow-auto h-[600px]">
+                        <Table>
+                          <TableHeader className="sticky top-0 bg-card z-20 border-b">
+                            <TableRow>
+                              <TableHead className="w-[150px]">Reporter</TableHead>
+                              <TableHead className="w-[100px]">Type</TableHead>
+                              <TableHead className="w-[300px]">Content</TableHead>
+                              <TableHead className="w-[200px]">Reason</TableHead>
+                              <TableHead className="w-[100px]">Status</TableHead>
+                              <TableHead className="w-[200px]">Reported On</TableHead>
+                              <TableHead className="sticky right-0 bg-card w-[150px] z-20">Actions</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {[...Array(5)].map((_, i) => (
+                              <ReportRowSkeleton key={i} />
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
                     </div>
                   ) : (
                     <div className="relative overflow-hidden rounded-b-lg">
                       <div className="overflow-auto h-[600px]">
                         <Table>
-                          <TableHeader className="sticky top-0 bg-card z-20 border-b"> {/*Added z-index*/}
+                          <TableHeader className="sticky top-0 bg-card z-20 border-b">
                             <TableRow>
                               <TableHead className="w-[150px]">Reporter</TableHead>
                               <TableHead className="w-[100px]">Type</TableHead>
