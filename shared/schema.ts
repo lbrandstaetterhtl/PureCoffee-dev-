@@ -12,8 +12,6 @@ export const users = pgTable("users", {
   isAdmin: boolean("is_admin").notNull().default(false),
   role: text("role").notNull().default("user"),
   verified: boolean("verified").notNull().default(false),
-  tutorialCompleted: boolean("tutorial_completed").notNull().default(false),
-  tutorialStep: integer("tutorial_step").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -169,8 +167,6 @@ export const adminUpdateUserSchema = z.object({
   isAdmin: z.boolean().optional(),
   emailVerified: z.boolean().optional(),
   verified: z.boolean().optional(),
-  tutorialCompleted: z.boolean().optional(),
-  tutorialStep: z.number().optional()
 });
 
 export const adminUpdateReportSchema = z.object({
