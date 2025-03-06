@@ -55,14 +55,13 @@ export default function EntertainmentPage() {
   const { data: posts, isLoading } = useQuery<PostWithAuthor[]>({
     queryKey: ["/api/posts", "entertainment"],
     queryFn: async () => {
-      const res = await fetch("/api/posts?category=entertainment&include=author,comments,reactions,userReaction");
+      const res = await fetch("/api/posts?category=entertainment");
       if (!res.ok) throw new Error("Failed to fetch posts");
       return res.json();
     },
   });
 
-  type FormData = z.infer<typeof insertMediaPostSchema>;
-  const form = useForm<FormData>({
+  const form = useForm<z.infer<typeof insertMediaPostSchema>>({
     resolver: zodResolver(insertMediaPostSchema),
     defaultValues: {
       title: "",
@@ -71,46 +70,37 @@ export default function EntertainmentPage() {
     },
   });
 
-  const createPostMutation = useMutation<Post, Error, FormData>({
-    mutationFn: async (data) => {
-      console.log("Creating post with data:", data); // Debug log
-
-      const formData = new FormData();
-      formData.append("title", data.title);
-      formData.append("content", data.content);
-      formData.append("category", data.category);
-
-      const mediaFile = form.getValues("mediaFile");
-      if (mediaFile?.[0]) {
-        console.log("Appending media file:", mediaFile[0]); // Debug log
-        formData.append("mediaFile", mediaFile[0]);  // Match the field name with server
-      }
+  const createPostMutation = useMutation({
+    mutationFn: async (data: FormData) => {
+      console.log("Submitting form data:", {
+        title: data.get('title'),
+        content: data.get('content'),
+        mediaFile: data.get('mediaFile')
+      });
 
       const res = await fetch("/api/posts", {
         method: "POST",
-        body: formData,
+        body: data,
       });
 
       if (!res.ok) {
         const errorText = await res.text();
-        console.error("Failed to create post:", errorText); // Debug log
+        console.error("Failed to create post:", errorText);
         throw new Error(errorText || "Failed to create post");
       }
 
-      const post = await res.json();
-      console.log("Created post:", post); // Debug log
-      return post;
+      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/posts", "entertainment"] });
       form.reset();
       toast({
-        title: "Post created",
-        description: "Your entertainment post has been shared successfully.",
+        title: "Success",
+        description: "Your entertainment post has been shared.",
       });
     },
-    onError: (error) => {
-      console.error("Post creation error:", error); // Debug log
+    onError: (error: Error) => {
+      console.error("Post creation error:", error);
       toast({
         title: "Error",
         description: error.message,
@@ -156,6 +146,25 @@ export default function EntertainmentPage() {
     },
   });
 
+  const onSubmit = async (data: z.infer<typeof insertMediaPostSchema>) => {
+    try {
+      const formData = new FormData();
+      formData.append("title", data.title);
+      formData.append("content", data.content);
+      formData.append("category", data.category);
+
+      const mediaFile = form.getValues("mediaFile");
+      if (mediaFile?.[0]) {
+        console.log("Appending media file:", mediaFile[0]);
+        formData.append("mediaFile", mediaFile[0]);
+      }
+
+      await createPostMutation.mutateAsync(formData);
+    } catch (error) {
+      console.error("Error in form submission:", error);
+    }
+  };
+
   return (
     <>
       <Navbar />
@@ -176,7 +185,7 @@ export default function EntertainmentPage() {
             <CardContent>
               <Form {...form}>
                 <form
-                  onSubmit={form.handleSubmit((data) => createPostMutation.mutate(data))}
+                  onSubmit={form.handleSubmit(onSubmit)}
                   className="space-y-4"
                   encType="multipart/form-data"
                 >
@@ -223,9 +232,8 @@ export default function EntertainmentPage() {
                             onChange={(e) => {
                               const file = e.target.files?.[0];
                               if (file) {
-                                console.log("Selected file:", file); // Debug log
+                                console.log("Selected file:", file);
                                 onChange(e.target.files);
-                                form.setValue("mediaType", file.type.startsWith("image/") ? "image" : "video");
                               }
                             }}
                             {...field}
