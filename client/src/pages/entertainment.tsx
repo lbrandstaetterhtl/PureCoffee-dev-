@@ -133,9 +133,9 @@ export default function EntertainmentPage() {
     },
   });
 
-  const karmaUpdateMutation = useMutation<Post, Error, { postId: number; karma: number }>({
-    mutationFn: async ({ postId, karma }) => {
-      const res = await apiRequest("POST", `/api/posts/${postId}/karma`, { karma });
+  const reactionMutation = useMutation<Post, Error, { postId: number; isLike: boolean }>({
+    mutationFn: async ({ postId, isLike }) => {
+      const res = await apiRequest("POST", `/api/posts/${postId}/react`, { isLike });
       return res.json();
     },
     onSuccess: () => {
@@ -153,16 +153,6 @@ export default function EntertainmentPage() {
         title: "Report submitted",
         description: "Thank you for helping keep our community fun and safe.",
       });
-    },
-  });
-
-  const reactionMutation = useMutation<Post, Error, { postId: number; isLike: boolean }>({
-    mutationFn: async ({ postId, isLike }) => {
-      const res = await apiRequest("POST", `/api/posts/${postId}/react`, { isLike });
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/posts", "entertainment"] });
     },
   });
 

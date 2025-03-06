@@ -33,15 +33,18 @@ const upload = multer({
   storage: multer.diskStorage({
     destination: "./uploads",
     filename: function (req, file, cb) {
-      cb(null, Date.now() + path.extname(file.originalname));
+      // Add timestamp to ensure unique filenames
+      const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1E9)}`;
+      cb(null, `${uniqueSuffix}${path.extname(file.originalname)}`);
     }
   }),
   fileFilter: (req, file, cb) => {
+    console.log("Processing uploaded file:", file); // Debug log
     const allowedTypes = ["image/jpeg", "image/png", "image/gif", "video/mp4", "video/webm"];
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error("Invalid file type"));
+      cb(new Error(`Invalid file type. Allowed types are: ${allowedTypes.join(', ')}`));
     }
   },
   limits: {
@@ -188,7 +191,6 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
         mediaType: req.file ? (req.file.mimetype.startsWith('image/') ? 'image' : 'video') : null
       });
 
-      // Log the created post details
       console.log("Created post with media:", {
         id: post.id,
         mediaUrl: post.mediaUrl,
@@ -198,7 +200,11 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
       res.status(201).json(post);
     } catch (error) {
       console.error("Error creating post:", error);
-      res.status(500).send("Failed to create post");
+      if (error instanceof Error) {
+        res.status(400).send(error.message);
+      } else {
+        res.status(500).send("Failed to create post");
+      }
     }
   });
 
