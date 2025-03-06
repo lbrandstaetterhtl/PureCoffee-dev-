@@ -324,6 +324,8 @@ export default function MediaFeedPage() {
                               className="max-w-full h-auto max-h-[500px] rounded-lg"
                               onError={(e) => {
                                 console.error('Image failed to load:', post.mediaUrl);
+                                const target = e.target as HTMLImageElement;
+                                console.error('Failed URL:', target.src);
                                 setImageLoadErrors((prev) => ({ ...prev, [post.id]: true }));
                               }}
                               loading="lazy"
@@ -337,6 +339,8 @@ export default function MediaFeedPage() {
                               className="max-w-full max-h-[500px] rounded-lg"
                               onError={(e) => {
                                 console.error('Video failed to load:', post.mediaUrl);
+                                const target = e.target as HTMLVideoElement;
+                                console.error('Failed URL:', target.src);
                                 setImageLoadErrors((prev) => ({ ...prev, [post.id]: true }));
                               }}
                             />
