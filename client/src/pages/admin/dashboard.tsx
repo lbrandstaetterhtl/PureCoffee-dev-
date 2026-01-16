@@ -23,12 +23,23 @@ import {
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import { User, Report } from "@shared/schema";
 import {
   Loader2, Shield, Users, Flag, CheckCircle, XCircle, Search,
   Ban, Check, AlertTriangle, Trophy, BadgeCheck, Activity,
-  TrendingUp, UserCheck, UserX, MessagesSquare
+  TrendingUp, UserCheck, UserX, MessagesSquare, Trash2, ShieldOff
 } from "lucide-react";
 import { useState } from "react";
 import { Link } from "wouter";
@@ -40,10 +51,14 @@ interface ExtendedReport extends Report {
   reporter?: {
     username: string;
   };
-  reportedContent?: {
+  content?: {
     type: 'post' | 'discussion' | 'comment';
     title?: string;
-    content: string;
+    content?: string;
+    author?: {
+      username: string;
+      id: number;
+    };
   };
 }
 
@@ -52,6 +67,7 @@ interface DashboardStats {
   activeUsers: number;
   verifiedUsers: number;
   bannedUsers: number;
+  deletedUsers: number;
   totalPosts: number;
   totalReports: number;
   pendingReports: number;
@@ -162,11 +178,13 @@ export default function AdminDashboard() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
       toast({
         title: "Success",
         description: "User updated successfully",
       });
+      // Invalidate queries to refresh users and stats
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/stats'] });
     },
     onError: (error) => {
       toast({
@@ -235,12 +253,13 @@ export default function AdminDashboard() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
       toast({
         title: "Success",
         description: "User deleted successfully",
       });
+      // Invalidate queries to refresh users and stats
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/stats'] });
     },
     onError: (error) => {
       toast({
@@ -253,7 +272,7 @@ export default function AdminDashboard() {
 
   const filteredUsers = users?.filter(user => {
     const matchesSearch = user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchQuery.toLowerCase());
+      (user.email || "").toLowerCase().includes(searchQuery.toLowerCase());
 
     if (!matchesSearch) return false;
 
@@ -274,52 +293,47 @@ export default function AdminDashboard() {
     return true;
   });
 
-  const handleReportAction = (reportId: number, status: string) => {
-    if (window.confirm(`Are you sure you want to ${status === 'resolved' ? 'resolve' : 'reject'} this report? ${status === 'resolved' ? 'This will delete the reported content.' : ''}`)) {
-      updateReportMutation.mutate({ reportId, status });
-    }
-  };
+
+
 
   const handleVerificationToggle = async (userId: number, currentVerified: boolean) => {
-    const action = currentVerified ? 'unverify' : 'verify';
-    if (window.confirm(`Are you sure you want to ${action} this user?`)) {
-      try {
-        console.log('Toggling verification:', { userId, currentVerified, newValue: !currentVerified });
+    // Confirmation is now handled by AlertDialog in the UI
+    try {
+      console.log('Toggling verification:', { userId, currentVerified, newValue: !currentVerified });
 
-        await updateUserMutation.mutateAsync({
-          userId,
-          data: {
-            verified: !currentVerified,
-            // Include role and isAdmin to prevent accidental role changes
-            role: users?.find(u => u.id === userId)?.role,
-            isAdmin: users?.find(u => u.id === userId)?.isAdmin
-          }
-        });
+      await updateUserMutation.mutateAsync({
+        userId,
+        data: {
+          verified: !currentVerified,
+          // Include role and isAdmin to prevent accidental role changes
+          role: users?.find(u => u.id === userId)?.role,
+          isAdmin: users?.find(u => u.id === userId)?.isAdmin
+        }
+      });
 
-        // Force refetch all user data
-        await queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-        await queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      // Force refetch all user data
+      await queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/users"] });
 
-        toast({
-          title: "Success",
-          description: `User ${action}d successfully`,
-        });
-      } catch (error) {
-        console.error('Error toggling verification:', error);
-        toast({
-          title: "Error",
-          description: `Failed to ${action} user`,
-          variant: "destructive"
-        });
-      }
+      toast({
+        title: "Success",
+        description: `User ${!currentVerified ? 'verified' : 'unverified'} successfully`,
+      });
+    } catch (error) {
+      console.error('Error toggling verification:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update user verification status",
+        variant: "destructive",
+      });
     }
   };
 
   return (
     <>
       <Navbar />
-      <main className="container mx-auto px-4 pt-24 pb-8">
-        <div className="max-w-[1400px] mx-auto">
+      <main className="w-full px-6 pt-24 pb-8">
+        <div className="w-full mx-auto">
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-3">
               <Shield className="h-8 w-8 text-primary" />
@@ -388,6 +402,15 @@ export default function AdminDashboard() {
               <Card>
                 <CardHeader>
                   <CardDescription className="flex items-center gap-2">
+                    <Trash2 className="h-4 w-4" />
+                    Deleted Users
+                  </CardDescription>
+                  <CardTitle>{stats?.deletedUsers || 0}</CardTitle>
+                </CardHeader>
+              </Card>
+              <Card>
+                <CardHeader>
+                  <CardDescription className="flex items-center gap-2">
                     <MessagesSquare className="h-4 w-4" />
                     Total Posts
                   </CardDescription>
@@ -433,7 +456,14 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          <Tabs defaultValue="users" className="space-y-4">
+          <Tabs defaultValue="users" className="space-y-4" onValueChange={(value) => {
+            // Refresh data when switching tabs
+            if (value === 'users') {
+              queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
+            } else if (value === 'reports') {
+              queryClient.invalidateQueries({ queryKey: ['/api/admin/reports'] });
+            }
+          }}>
             <TabsList>
               <TabsTrigger value="users" className="flex items-center gap-2">
                 <Users className="h-4 w-4" />
@@ -547,8 +577,8 @@ export default function AdminDashboard() {
                                 <TableCell>{u.email}</TableCell>
                                 <TableCell>
                                   <div className="flex gap-2">
-                                    <Badge variant={u.emailVerified ? "default" : "secondary"}>
-                                      {u.emailVerified ? "Verified" : "Unverified"}
+                                    <Badge variant={u.emailVerified ? "default" : "secondary"} className="whitespace-nowrap">
+                                      {u.emailVerified ? "Verified E-Mail" : "Unverified E-Mail"}
                                     </Badge>
                                     {u.verified && (
                                       <Badge variant="default" className="bg-blue-500 flex items-center gap-1">
@@ -585,48 +615,87 @@ export default function AdminDashboard() {
                                   <div className="flex items-center space-x-2">
                                     {(user.role === 'owner' || (user.role === 'admin' && u.role === 'user')) && (
                                       <>
-                                        <Button
-                                          size="sm"
-                                          variant={u.verified ? "default" : "outline"}
-                                          onClick={() => handleVerificationToggle(u.id, u.verified)}
-                                          disabled={updateUserMutation.isPending}
-                                          className="flex items-center gap-1"
-                                        >
-                                          <BadgeCheck className="h-4 w-4 flex-shrink-0" />
-                                          {u.verified ? "Remove Verification" : "Verify User"}
-                                        </Button>
-                                        <Button
-                                          size="sm"
-                                          variant={u.karma < 0 ? "default" : "destructive"}
-                                          onClick={() => {
-                                            const action = u.karma < 0 ? 'restore' : 'ban';
-                                            const newKarma = u.karma < 0 ? 5 : -100;
-
-                                            if (window.confirm(
-                                              action === 'ban'
-                                                ? `Are you sure you want to ban ${u.username}? This will prevent them from accessing most features.`
-                                                : `Are you sure you want to restore ${u.username}'s account?`
-                                            )) {
-                                              updateUserMutation.mutate({
-                                                userId: u.id,
-                                                data: { karma: newKarma }
-                                              });
-                                            }
-                                          }}
-                                          disabled={updateUserMutation.isPending}
-                                        >
-                                          {u.karma < 0 ? (
-                                            <>
-                                              <Check className="h-4 w-4 mr-1" />
-                                              Restore Account
-                                            </>
-                                          ) : (
-                                            <>
-                                              <Ban className="h-4 w-4 mr-1" />
-                                              Ban User
-                                            </>
-                                          )}
-                                        </Button>
+                                        <AlertDialog>
+                                          <AlertDialogTrigger asChild>
+                                            <Button
+                                              size="sm"
+                                              variant={u.verified ? "default" : "outline"}
+                                              disabled={updateUserMutation.isPending}
+                                              className="flex items-center gap-1"
+                                            >
+                                              <BadgeCheck className="h-4 w-4 flex-shrink-0" />
+                                              {u.verified ? "Remove Verification" : "Verify User"}
+                                            </Button>
+                                          </AlertDialogTrigger>
+                                          <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                              <AlertDialogTitle>
+                                                {u.verified ? 'Remove Verification' : 'Verify User'}
+                                              </AlertDialogTitle>
+                                              <AlertDialogDescription>
+                                                {u.verified
+                                                  ? `Are you sure you want to remove verification from ${u.username}? This will remove their verified badge.`
+                                                  : `Are you sure you want to verify ${u.username}? This will display a verified badge next to their name.`}
+                                              </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                              <AlertDialogAction
+                                                onClick={() => handleVerificationToggle(u.id, u.verified)}
+                                              >
+                                                {u.verified ? 'Remove' : 'Verify'}
+                                              </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                          </AlertDialogContent>
+                                        </AlertDialog>
+                                        <AlertDialog>
+                                          <AlertDialogTrigger asChild>
+                                            <Button
+                                              size="sm"
+                                              variant={u.karma < 0 ? "default" : "destructive"}
+                                              disabled={updateUserMutation.isPending}
+                                            >
+                                              {u.karma < 0 ? (
+                                                <>
+                                                  <Check className="h-4 w-4 mr-1" />
+                                                  Restore Account
+                                                </>
+                                              ) : (
+                                                <>
+                                                  <Ban className="h-4 w-4 mr-1" />
+                                                  Ban User
+                                                </>
+                                              )}
+                                            </Button>
+                                          </AlertDialogTrigger>
+                                          <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                              <AlertDialogTitle>
+                                                {u.karma < 0 ? 'Restore Account' : 'Ban User'}
+                                              </AlertDialogTitle>
+                                              <AlertDialogDescription>
+                                                {u.karma < 0
+                                                  ? `Are you sure you want to restore ${u.username}'s account?`
+                                                  : `Are you sure you want to ban ${u.username}? This will prevent them from accessing most features.`}
+                                              </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                              <AlertDialogAction
+                                                onClick={() => {
+                                                  const newKarma = u.karma < 0 ? 5 : -100;
+                                                  updateUserMutation.mutate({
+                                                    userId: u.id,
+                                                    data: { karma: newKarma }
+                                                  });
+                                                }}
+                                                className={u.karma < 0 ? "" : "bg-destructive text-destructive-foreground hover:bg-destructive/90"}
+                                              >
+                                                {u.karma < 0 ? 'Restore' : 'Ban'}
+                                              </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                          </AlertDialogContent>
+                                        </AlertDialog>
                                         <Button
                                           size="sm"
                                           variant={u.emailVerified ? "ghost" : "default"}
@@ -648,63 +717,188 @@ export default function AdminDashboard() {
                                             </>
                                           )}
                                         </Button>
-                                        <Button
-                                          size="sm"
-                                          variant="destructive"
-                                          onClick={() => {
-                                            if (window.confirm(
-                                              `Are you sure you want to permanently delete ${u.username}? This action cannot be undone and will delete all of the user's posts, comments, and other data.`
-                                            )) {
-                                              deleteUserMutation.mutate(u.id);
-                                            }
-                                          }}
-                                          disabled={deleteUserMutation.isPending}
-                                          className="flex items-center gap-1"
-                                        >
-                                          <Trash2 className="h-4 w-4 flex-shrink-0" />
-                                          Delete User
-                                        </Button>
-                                        {(user.role === 'owner' || user.role === 'admin') && u.role === 'user' && (
-                                          <Button
-                                            size="sm"
-                                            variant="default"
-                                            onClick={() => {
-                                              if (window.confirm(`Are you sure you want to make ${u.username} an admin? This will give them administrative privileges.`)) {
-                                                updateUserMutation.mutate({
-                                                  userId: u.id,
-                                                  data: {
-                                                    role: 'admin',
-                                                    isAdmin: true
-                                                  }
-                                                });
-                                              }
-                                            }}
-                                            disabled={updateUserMutation.isPending}
-                                          >
-                                            <Shield className="h-4 w-4 mr-1" />
-                                            Make Admin
-                                          </Button>
+                                        <AlertDialog>
+                                          <AlertDialogTrigger asChild>
+                                            <Button
+                                              size="sm"
+                                              variant="destructive"
+                                              disabled={deleteUserMutation.isPending}
+                                            >
+                                              <Trash2 className="h-4 w-4 mr-1" />
+                                              Delete
+                                            </Button>
+                                          </AlertDialogTrigger>
+                                          <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                              <AlertDialogTitle>Delete User</AlertDialogTitle>
+                                              <AlertDialogDescription>
+                                                Are you sure you want to permanently delete {u.username}? This action cannot be undone and will delete all of the user's posts, comments, and other data.
+                                              </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                              <AlertDialogAction
+                                                onClick={() => deleteUserMutation.mutate(u.id)}
+                                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                              >
+                                                Delete User
+                                              </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                          </AlertDialogContent>
+                                        </AlertDialog>
+                                        {user.role === 'owner' && u.role !== 'admin' && u.role !== 'owner' && (
+                                          <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                              <Button
+                                                size="sm"
+                                                variant="default"
+                                                disabled={updateUserMutation.isPending}
+                                              >
+                                                <Shield className="h-4 w-4 mr-1" />
+                                                Make Admin
+                                              </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                              <AlertDialogHeader>
+                                                <AlertDialogTitle>Make Admin</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                  Are you sure you want to make {u.username} an admin? This will give them administrative privileges.
+                                                </AlertDialogDescription>
+                                              </AlertDialogHeader>
+                                              <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction
+                                                  onClick={() => {
+                                                    updateUserMutation.mutate({
+                                                      userId: u.id,
+                                                      data: {
+                                                        role: 'admin',
+                                                        isAdmin: true
+                                                      }
+                                                    });
+                                                  }}
+                                                >
+                                                  Make Admin
+                                                </AlertDialogAction>
+                                              </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                          </AlertDialog>
                                         )}
-                                        {user.role === 'owner' && u.role === 'admin' && (
-                                          <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={() => {
-                                              if (window.confirm(`Are you sure you want to remove ${u.username}'s admin privileges? They will be demoted to a regular user.`)) {
-                                                updateUserMutation.mutate({
-                                                  userId: u.id,
-                                                  data: {
-                                                    role: 'user',
-                                                    isAdmin: false
-                                                  }
-                                                });
-                                              }
-                                            }}
-                                            disabled={updateUserMutation.isPending}
-                                          >
-                                            <Shield className="h-4 w-4 mr-1" />
-                                            Remove Admin
-                                          </Button>
+                                        {user.role === 'owner' && u.role !== 'owner' && (
+                                          <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                              <Button
+                                                size="sm"
+                                                variant="default"
+                                                className="bg-purple-600 hover:bg-purple-700"
+                                                disabled={updateUserMutation.isPending}
+                                              >
+                                                <Trophy className="h-4 w-4 mr-1" />
+                                                Make Owner
+                                              </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                              <AlertDialogHeader>
+                                                <AlertDialogTitle>Make Owner</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                  Are you sure you want to promote {u.username} to Owner? This grants them full system access.
+                                                </AlertDialogDescription>
+                                              </AlertDialogHeader>
+                                              <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction
+                                                  onClick={() => {
+                                                    updateUserMutation.mutate({
+                                                      userId: u.id,
+                                                      data: {
+                                                        role: 'owner',
+                                                        isAdmin: true
+                                                      }
+                                                    });
+                                                  }}
+                                                >
+                                                  Make Owner
+                                                </AlertDialogAction>
+                                              </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                          </AlertDialog>
+                                        )}
+                                        {user.role === 'owner' && u.role === 'owner' && u.id !== user.id && (
+                                          <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                              <Button
+                                                size="sm"
+                                                variant="outline"
+                                                className="border-purple-600 text-purple-600 hover:bg-purple-50"
+                                                disabled={updateUserMutation.isPending}
+                                              >
+                                                <ShieldOff className="h-4 w-4 mr-1" />
+                                                Remove Owner
+                                              </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                              <AlertDialogHeader>
+                                                <AlertDialogTitle>Remove Owner Status</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                  Are you sure you want to remove Owner status from {u.username}? They will be demoted to an Admin.
+                                                </AlertDialogDescription>
+                                              </AlertDialogHeader>
+                                              <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction
+                                                  onClick={() => {
+                                                    updateUserMutation.mutate({
+                                                      userId: u.id,
+                                                      data: {
+                                                        role: 'admin',
+                                                        isAdmin: true
+                                                      }
+                                                    });
+                                                  }}
+                                                >
+                                                  Remove Owner
+                                                </AlertDialogAction>
+                                              </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                          </AlertDialog>
+                                        )}
+                                        {(user.role === 'owner' || user.role === 'admin') && u.role === 'admin' && u.id !== user.id && (
+                                          <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                              <Button
+                                                size="sm"
+                                                variant="outline"
+                                                disabled={updateUserMutation.isPending}
+                                              >
+                                                <ShieldOff className="h-4 w-4 mr-1" />
+                                                Remove Admin
+                                              </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                              <AlertDialogHeader>
+                                                <AlertDialogTitle>Remove Admin</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                  Are you sure you want to remove {u.username}'s admin privileges? They will be demoted to a regular user.
+                                                </AlertDialogDescription>
+                                              </AlertDialogHeader>
+                                              <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction
+                                                  onClick={() => {
+                                                    updateUserMutation.mutate({
+                                                      userId: u.id,
+                                                      data: {
+                                                        role: 'user',
+                                                        isAdmin: false
+                                                      }
+                                                    });
+                                                  }}
+                                                >
+                                                  Remove Admin
+                                                </AlertDialogAction>
+                                              </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                          </AlertDialog>
                                         )}
                                       </>
                                     )}
@@ -787,11 +981,12 @@ export default function AdminDashboard() {
                           <TableHeader className="sticky top-0 bg-card z-20 border-b">
                             <TableRow>
                               <TableHead className="w-[150px]">Reporter</TableHead>
+                              <TableHead className="w-[150px]">Poster</TableHead>
                               <TableHead className="w-[100px]">Type</TableHead>
-                              <TableHead className="w-[300px]">Content</TableHead>
-                              <TableHead className="w-[200px]">Reason</TableHead>
+                              <TableHead className="w-[250px]">Content</TableHead>
+                              <TableHead className="w-[180px]">Reason</TableHead>
                               <TableHead className="w-[100px]">Status</TableHead>
-                              <TableHead className="w-[200px]">Reported On</TableHead>
+                              <TableHead className="w-[180px]">Reported On</TableHead>
                               <TableHead className="sticky right-0 bg-card w-[150px] z-20">Actions</TableHead>
                             </TableRow>
                           </TableHeader>
@@ -800,12 +995,15 @@ export default function AdminDashboard() {
                               <TableRow key={report.id}>
                                 <TableCell>{report.reporter?.username}</TableCell>
                                 <TableCell>
-                                  {report.reportedContent?.type === 'post' ? "Post" :
-                                    report.reportedContent?.type === 'discussion' ? "Discussion" :
+                                  {report.content?.author?.username || 'Unknown'}
+                                </TableCell>
+                                <TableCell>
+                                  {report.content?.type === 'post' ? "Post" :
+                                    report.content?.type === 'discussion' ? "Discussion" :
                                       "Comment"}
                                 </TableCell>
                                 <TableCell className="max-w-xs truncate">
-                                  {report.reportedContent?.title || report.reportedContent?.content}
+                                  {report.content?.title || report.content?.content || 'Content deleted'}
                                 </TableCell>
                                 <TableCell>{report.reason}</TableCell>
                                 <TableCell>
@@ -821,22 +1019,60 @@ export default function AdminDashboard() {
                                 </TableCell>
                                 <TableCell>
                                   <div className="flex items-center space-x-2">
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={() => handleReportAction(report.id, "resolved")}
-                                      disabled={report.status !== "pending" || updateReportMutation.isPending}
-                                    >
-                                      <CheckCircle className="h-4 w-4" />
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={() => handleReportAction(report.id, "rejected")}
-                                      disabled={report.status !== "pending" || updateReportMutation.isPending}
-                                    >
-                                      <XCircle className="h-4 w-4" />
-                                    </Button>
+                                    <AlertDialog>
+                                      <AlertDialogTrigger asChild>
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          disabled={report.status !== "pending" || updateReportMutation.isPending}
+                                        >
+                                          <CheckCircle className="h-4 w-4" />
+                                        </Button>
+                                      </AlertDialogTrigger>
+                                      <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                          <AlertDialogTitle>Resolve Report</AlertDialogTitle>
+                                          <AlertDialogDescription>
+                                            Are you sure you want to resolve this report? This will delete the reported content.
+                                          </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                          <AlertDialogAction
+                                            onClick={() => updateReportMutation.mutate({ reportId: report.id, status: "resolved" })}
+                                          >
+                                            Resolve
+                                          </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                      </AlertDialogContent>
+                                    </AlertDialog>
+                                    <AlertDialog>
+                                      <AlertDialogTrigger asChild>
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          disabled={report.status !== "pending" || updateReportMutation.isPending}
+                                        >
+                                          <XCircle className="h-4 w-4" />
+                                        </Button>
+                                      </AlertDialogTrigger>
+                                      <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                          <AlertDialogTitle>Reject Report</AlertDialogTitle>
+                                          <AlertDialogDescription>
+                                            Are you sure you want to reject this report? The reported content will remain.
+                                          </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                          <AlertDialogAction
+                                            onClick={() => updateReportMutation.mutate({ reportId: report.id, status: "rejected" })}
+                                          >
+                                            Reject
+                                          </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                      </AlertDialogContent>
+                                    </AlertDialog>
                                   </div>
                                 </TableCell>
                               </TableRow>

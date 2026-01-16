@@ -67,6 +67,7 @@ export interface IStorage {
   }): Promise<Notification>;
   getNotifications(userId: number): Promise<Notification[]>;
   markNotificationAsRead(notificationId: number): Promise<void>;
+  deleteNotification(notificationId: number): Promise<void>;
 
   // Messages
   createMessage(message: {
@@ -95,10 +96,15 @@ export interface IStorage {
 
   // Add new method for active users count
   getActiveUsersCount(since: Date): Promise<number>;
+
+  // Add methods for tracking deleted users
+  getDeletedUsersCount(): number;
+  incrementDeletedUsersCount(): void;
 }
 
 export class DatabaseStorage implements IStorage {
   public sessionStore: session.Store;
+  private deletedUsersCount: number = 0;
 
   constructor() {
     if (process.env.USE_SQLITE === 'true') {
@@ -387,11 +393,38 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createComment(comment: Omit<Comment, "id" | "createdAt" | "karma">): Promise<Comment> {
+    const sqlite = getSqlite();
+    if (process.env.USE_SQLITE === 'true' && sqlite) {
+      const createdAt = Math.floor(Date.now() / 1000);
+      const stmt = sqlite.prepare('INSERT INTO comments (post_id, content, author_id, karma, created_at) VALUES (?, ?, ?, ?, ?)');
+      const result = stmt.run(comment.postId, comment.content, comment.authorId, 0, createdAt);
+
+      return {
+        id: result.lastInsertRowid as number,
+        postId: comment.postId,
+        content: comment.content,
+        authorId: comment.authorId,
+        karma: 0,
+        createdAt: new Date(createdAt * 1000)
+      };
+    }
     const [newComment] = await db.insert(comments).values(comment).returning();
     return newComment;
   }
 
   async getComments(postId: number): Promise<Comment[]> {
+    const sqlite = getSqlite();
+    if (process.env.USE_SQLITE === 'true' && sqlite) {
+      const rows = sqlite.prepare('SELECT * FROM comments WHERE post_id = ? ORDER BY created_at ASC').all(postId);
+      return rows.map((comment: any) => ({
+        id: comment.id,
+        postId: comment.post_id,
+        content: comment.content,
+        authorId: comment.author_id,
+        karma: comment.karma,
+        createdAt: new Date(Number(comment.created_at) * 1000)
+      }));
+    }
     return db.select().from(comments).where(eq(comments.postId, postId));
   }
 
@@ -586,6 +619,12 @@ export class DatabaseStorage implements IStorage {
       .where(eq(notifications.id, notificationId));
   }
 
+  async deleteNotification(notificationId: number): Promise<void> {
+    await db
+      .delete(notifications)
+      .where(eq(notifications.id, notificationId));
+  }
+
   // Messages
   async createMessage(message: {
     senderId: number;
@@ -702,6 +741,17 @@ export class DatabaseStorage implements IStorage {
     }
   }
   async getUsers(): Promise<User[]> {
+    const sqlite = getSqlite();
+    if (process.env.USE_SQLITE === 'true' && sqlite) {
+      const rows = sqlite.prepare('SELECT * FROM users ORDER BY created_at DESC').all();
+      return rows.map((user: any) => ({
+        ...user,
+        emailVerified: Boolean(user.email_verified),
+        isAdmin: Boolean(user.is_admin),
+        verified: Boolean(user.verified),
+        createdAt: new Date(Number(user.created_at) * 1000)
+      }));
+    }
     return db.select().from(users).orderBy(desc(users.createdAt));
   }
 
@@ -723,6 +773,9 @@ export class DatabaseStorage implements IStorage {
       sqlite.prepare('DELETE FROM posts WHERE author_id = ?').run(id);
       sqlite.prepare('DELETE FROM users WHERE id = ?').run(id);
       console.log('User deleted successfully:', id);
+
+      // Increment deleted users counter
+      this.incrementDeletedUsersCount();
       return;
     }
 
@@ -750,6 +803,9 @@ export class DatabaseStorage implements IStorage {
       )
     );
     await db.delete(users).where(eq(users.id, id));
+
+    // Increment deleted users counter
+    this.incrementDeletedUsersCount();
   }
   async updateAllReportsForContent(postId: number | null, commentId: number | null, discussionId: number | null, status: string): Promise<void> {
     const conditions = [];
@@ -950,6 +1006,39 @@ export class DatabaseStorage implements IStorage {
     }
     const [newNotification] = await db.insert(notifications).values({ ...notification, read: false }).returning();
     return newNotification;
+  }
+
+  getDeletedUsersCount(): number {
+    return this.deletedUsersCount;
+  }
+
+  incrementDeletedUsersCount(): void {
+    this.deletedUsersCount++;
+  }
+
+  public fixInvalidTimestamps(): void {
+    const sqlite = getSqlite();
+    if (process.env.USE_SQLITE === 'true' && sqlite) {
+      try {
+        const users = sqlite.prepare('SELECT id, username, created_at FROM users').all() as any[];
+        const currentTimestamp = Math.floor(Date.now() / 1000);
+        const invalidUsers = users.filter((u: any) => u.created_at < 1577836800); // Before Jan 1, 2020
+
+        if (invalidUsers.length > 0) {
+          console.log(`🔧 Fixing ${invalidUsers.length} invalid user timestamp(s)...`);
+          const stmt = sqlite.prepare('UPDATE users SET created_at = ? WHERE id = ?');
+
+          for (const user of invalidUsers) {
+            stmt.run(currentTimestamp, user.id);
+            console.log(`  ✅ Fixed timestamp for user: ${user.username} (ID: ${user.id})`);
+          }
+
+          console.log(`✅ Updated ${invalidUsers.length} user timestamp(s) to ${new Date(currentTimestamp * 1000).toISOString()}`);
+        }
+      } catch (error) {
+        console.error('Error fixing timestamps:', error);
+      }
+    }
   }
 }
 

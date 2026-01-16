@@ -6,6 +6,17 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { ThumbsUp, ThumbsDown, Flag, Loader2, MessageCircle, Trash2, Plus, Heart, BadgeCheck, ImageOff } from "lucide-react";
 import { format } from "date-fns";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -431,19 +442,35 @@ export default function MediaFeedPage() {
                                 {(comment.author.username === user?.username ||
                                   user?.role === "owner" ||
                                   (user?.role === "admin" && comment.author.role !== "owner")) && (
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => {
-                                        if (window.confirm("Are you sure you want to delete this comment?")) {
-                                          deleteCommentMutation.mutate({ postId: post.id, commentId: comment.id });
-                                        }
-                                      }}
-                                      disabled={deleteCommentMutation.isPending}
-                                      className="h-8 w-8 p-0"
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
+                                    <AlertDialog>
+                                      <AlertDialogTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          disabled={deleteCommentMutation.isPending}
+                                          className="h-8 w-8 p-0"
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </AlertDialogTrigger>
+                                      <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                          <AlertDialogTitle>Delete Comment</AlertDialogTitle>
+                                          <AlertDialogDescription>
+                                            Are you sure you want to delete this comment? This action cannot be undone.
+                                          </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                          <AlertDialogAction
+                                            onClick={() => deleteCommentMutation.mutate({ postId: post.id, commentId: comment.id })}
+                                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                          >
+                                            Delete
+                                          </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                      </AlertDialogContent>
+                                    </AlertDialog>
                                   )}
                               </div>
                             </div>
@@ -479,41 +506,72 @@ export default function MediaFeedPage() {
                       {(user?.role === "owner" ||
                         (user?.role === "admin" && post.author.role !== "owner") ||
                         post.author.id === user?.id) && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              if (window.confirm("Are you sure you want to delete this post?")) {
-                                deletePostMutation.mutate(post.id);
-                              }
-                            }}
-                            disabled={deletePostMutation.isPending}
-                            className="h-8"
-                          >
-                            {deletePostMutation.isPending ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <>
-                                <Trash2 className="h-4 w-4 mr-1" />
-                                <span className="text-xs lg:text-sm">Delete</span>
-                              </>
-                            )}
-                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                disabled={deletePostMutation.isPending}
+                                className="h-8"
+                              >
+                                {deletePostMutation.isPending ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <>
+                                    <Trash2 className="h-4 w-4 mr-1" />
+                                    <span className="text-xs lg:text-sm">Delete</span>
+                                  </>
+                                )}
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete Post</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to delete this post? This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => deletePostMutation.mutate(post.id)}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
                         )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() =>
-                          reportMutation.mutate({
-                            postId: post.id,
-                            reason: post.category === "news" ? "Misinformation" : "Inappropriate content",
-                          })
-                        }
-                        className="h-8"
-                      >
-                        <Flag className="h-4 w-4 mr-1" />
-                        <span className="text-xs lg:text-sm">Report</span>
-                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-8">
+                            <Flag className="h-4 w-4 mr-1" />
+                            <span className="text-xs lg:text-sm">Report</span>
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Report Post</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Are you sure you want to report this post? This will notify moderators to review the content.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => {
+                                reportMutation.mutate({
+                                  postId: post.id,
+                                  reason: post.category === "news" ? "Misinformation" : "Inappropriate content",
+                                });
+                              }}
+                            >
+                              Report
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </div>
                   </CardFooter>
                 </Card>

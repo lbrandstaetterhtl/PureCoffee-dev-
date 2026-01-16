@@ -72,6 +72,11 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
   // Setup auth with session parser
   setupAuth(app, sessionParser);
 
+  const isAuthenticated = (req: any, res: any, next: any) => {
+    if (req.isAuthenticated()) return next();
+    res.status(401).send("Unauthorized");
+  };
+
   // Dedicated multer config for posts
   const postUpload = multer({
     storage: multer.diskStorage({
@@ -87,23 +92,21 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
   console.log("Registering Routes - POST /api/posts initialized");
 
   // Create post with optional media upload
-  app.post("/api/posts", (req, res, next) => {
-    console.log('Incoming POST /api/posts (Top Level Handler)');
-    console.log('Headers:', req.headers['content-type']);
-    next();
-  }, postUpload.any(), async (req, res) => {
+
+  app.post("/api/posts", isAuthenticated, postUpload.any(), async (req, res) => {
     try {
       console.log('POST /api/posts - Processing request');
-
-      if (!req.user) {
-        return res.status(401).send("Not authenticated");
-      }
+      console.log('User:', req.user?.username);
 
       const { title, content, category } = req.body;
 
+      if (!content && !req.files) {
+        return res.status(400).send("Content or media is required");
+      }
+
       // Build post object
       const postData: any = {
-        authorId: req.user.id,
+        authorId: req.user!.id,
         content: content || "",
         category: category || "general"
       };
@@ -125,10 +128,7 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
     }
   });
 
-  const isAuthenticated = (req: any, res: any, next: any) => {
-    if (req.isAuthenticated()) return next();
-    res.status(401).send("Unauthorized");
-  };
+
 
   // Setup WebSocket server
   const wss = new WebSocketServer({
@@ -220,47 +220,7 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
     }
   });
 
-  // Replace the existing post creation endpoint
-  app.post("/api/posts", isAuthenticated, upload.single("mediaFile"), async (req, res) => {
-    try {
-      console.log("Creating post with file:", {
-        file: req.file,
-        body: req.body,
-        mediaType: req.body.mediaType
-      });
 
-      if (req.file) {
-        console.log("File details:", {
-          filename: req.file.filename,
-          originalname: req.file.originalname,
-          mimetype: req.file.mimetype,
-          path: req.file.path
-        });
-      }
-
-      const post = await storage.createPost({
-        ...req.body,
-        authorId: req.user!.id,
-        mediaUrl: req.file ? req.file.filename : null,
-        mediaType: req.file ? (req.file.mimetype.startsWith('image/') ? 'image' : 'video') : null
-      });
-
-      console.log("Created post with media:", {
-        id: post.id,
-        mediaUrl: post.mediaUrl,
-        mediaType: post.mediaType
-      });
-
-      res.status(201).json(post);
-    } catch (error) {
-      console.error("Error creating post:", error);
-      if (error instanceof Error) {
-        res.status(400).send(error.message);
-      } else {
-        res.status(500).send("Failed to create post");
-      }
-    }
-  });
 
   // Comments
   app.get("/api/posts/:postId/comments", async (req, res) => {
@@ -313,55 +273,7 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
 
 
   // Create post with optional media upload
-  app.post("/api/posts", (req, res, next) => {
-    console.log('Incoming POST /api/posts');
-    console.log('Headers:', req.headers['content-type']);
-    next();
-  }, postUpload.any(), async (req, res) => {
-    try {
-      console.log('POST /api/posts - Request received');
-      console.log('User:', req.user);
-      console.log('Body:', req.body);
-      console.log('Files:', req.files);
 
-      if (!req.user) {
-        console.log('Authentication failed - no user');
-        return res.status(401).send("Not authenticated");
-      }
-
-      const { title, content, category } = req.body;
-
-      if (!content || !category) {
-        return res.status(400).send("Content and category are required");
-      }
-
-      // Build post object
-      const postData: any = {
-        authorId: req.user.id,
-        content,
-        category
-      };
-
-      // Add title if it exists (for media posts)
-      if (title) {
-        postData.title = title;
-      }
-
-      // Handle media upload - check files array
-      if (req.files && Array.isArray(req.files) && req.files.length > 0) {
-        const uploadedFile = req.files[0];
-        console.log('Media file uploaded:', uploadedFile.filename);
-        postData.mediaUrl = uploadedFile.filename;
-        postData.mediaType = req.body.mediaType || (uploadedFile.mimetype.startsWith('image/') ? 'image' : 'video');
-      }
-
-      const post = await storage.createPost(postData);
-      res.status(201).json(post);
-    } catch (error) {
-      console.error('Error creating post:', error);
-      res.status(500).send("Failed to create post");
-    }
-  });
 
   // Update the post reaction handler to use proper SQL updates
   app.post("/api/posts/:id/react", isAuthenticated, async (req, res) => {
@@ -626,9 +538,7 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
         updateData.email = req.body.email;
       }
 
-      if (req.body.role) {
-        updateData.role = req.body.role;
-      }
+
 
       const updatedUser = await storage.updateUserProfile(req.user!.id, updateData);
       res.json(updatedUser);
@@ -736,6 +646,28 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
     } catch (error) {
       console.error('Error marking notification as read:', error);
       res.status(500).send("Failed to mark notification as read");
+    }
+  });
+
+  app.delete("/api/notifications/:id", isAuthenticated, async (req, res) => {
+    try {
+      const notificationId = parseInt(req.params.id);
+      console.log(`Attempting to delete notification ${notificationId} for user ${req.user!.id}`);
+
+      const userNotifications = await storage.getNotifications(req.user!.id);
+      const targetNotification = userNotifications.find(n => n.id === notificationId);
+
+      if (!targetNotification) {
+        console.log(`Notification ${notificationId} not found for user ${req.user!.id}`);
+        return res.status(404).send("Notification not found");
+      }
+
+      await storage.deleteNotification(notificationId);
+      console.log(`Successfully deleted notification ${notificationId}`);
+      res.sendStatus(200);
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+      res.status(500).send("Failed to delete notification");
     }
   });
 
@@ -936,11 +868,15 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
       // Calculate active users based on recent activity
       const activeUsers = await storage.getActiveUsersCount(thirtyDaysAgo);
 
+      // Get deleted users count
+      const deletedUsers = storage.getDeletedUsersCount();
+
       const stats = {
         totalUsers,
         activeUsers,
         verifiedUsers,
         bannedUsers,
+        deletedUsers,
         totalPosts,
         totalReports,
         pendingReports,
@@ -1074,6 +1010,18 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
           }
         }
 
+        // Get the author of the reported content
+        let contentAuthor = null;
+        if (reportedContent && 'authorId' in reportedContent) {
+          const author = await storage.getUser(reportedContent.authorId);
+          if (author) {
+            contentAuthor = {
+              username: author.username,
+              id: author.id
+            };
+          }
+        }
+
         const enrichedReport = {
           ...report,
           reporter: {
@@ -1082,7 +1030,8 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
           content: reportedContent ? {
             type: contentType,
             title: contentType === 'comment' ? null : reportedContent.title,
-            content: reportedContent.content
+            content: reportedContent.content,
+            author: contentAuthor
           } : null
         };
 
@@ -1114,9 +1063,11 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
         currentUserRole: req.user?.role
       });
 
-      // Don't allow modifying owner
-      if (user.role === 'owner') {
-        return res.status(403).send("Cannot modify owner account");
+      // Don't allow modifying owner unless requester is also an owner (or specifically OwnerU)
+      const isRequesterOwner = req.user?.role === 'owner' || req.user?.username === 'OwnerU';
+
+      if (user.role === 'owner' && !isRequesterOwner) {
+        return res.status(403).send(`Cannot modify owner account. Request by: ${req.user?.username} (${req.user?.role})`);
       }
 
       // Only owner can modify admins
@@ -1194,8 +1145,10 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
       });
 
       // Don't allow non-owners to modify owner accounts
-      if (user.role === 'owner' && req.user?.role !== 'owner') {
-        return res.status(403).send("Only owner can modify owner accounts");
+      const isRequesterOwner = req.user?.role === 'owner' || req.user?.username === 'OwnerU';
+
+      if (user.role === 'owner' && !isRequesterOwner) {
+        return res.status(403).send(`Only owner can modify owner accounts. Request by: ${req.user?.username} (${req.user?.role})`);
       }
 
       const verified = req.body.verified;
@@ -1239,6 +1192,7 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
       res.status(500).send("Failed to reset roles");
     }
   });
+
 
   return httpServer;
 }

@@ -1,4 +1,4 @@
-import { createContext, ReactNode, useContext } from "react";
+import { createContext, ReactNode, useContext, useEffect } from "react";
 import {
   useQuery,
   useMutation,
@@ -90,6 +90,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
     },
   });
+
+  // Automatic logout when browser/tab is closed
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (user) {
+        // Use sendBeacon for reliable logout on page close
+        // This works even when the page is being unloaded
+        navigator.sendBeacon('/api/logout');
+
+        // Clear local cache immediately
+        queryClient.clear();
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [user]);
 
   return (
     <AuthContext.Provider

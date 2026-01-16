@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Button } from "@/components/ui/button";
-import { Bell, MessageCircle, Loader2 } from "lucide-react";
+import { Bell, MessageCircle, Loader2, X } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Notification, Message } from "@shared/schema";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -42,6 +42,21 @@ export function NotificationsDialog() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
     },
+  });
+
+  const deleteNotificationMutation = useMutation({
+    mutationFn: async (notificationId: number) => {
+      console.log("Deleting notification client-side:", notificationId);
+      const res = await apiRequest("DELETE", `/api/notifications/${notificationId}`);
+      if (!res.ok) throw new Error("Failed to delete notification");
+    },
+    onSuccess: () => {
+      console.log("Notification deleted successfully, invalidating queries");
+      queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
+    },
+    onError: (e) => {
+      console.error("Failed to delete notification client-side:", e);
+    }
   });
 
   // Calculate unread notifications count
@@ -102,6 +117,17 @@ export function NotificationsDialog() {
                     {format(new Date(notification.createdAt), "PPp")}
                   </p>
                 </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    deleteNotificationMutation.mutate(notification.id);
+                  }}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
               </div>
             ))}
           </div>

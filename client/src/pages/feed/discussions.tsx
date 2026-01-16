@@ -373,19 +373,35 @@ export default function DiscussionsFeedPage() {
                                 {(comment.author.username === user?.username ||
                                   user?.role === 'owner' ||
                                   (user?.role === 'admin' && comment.author.role !== 'owner')) && (
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => {
-                                        if (window.confirm("Are you sure you want to delete this comment?")) {
-                                          deleteCommentMutation.mutate({ postId: post.id, commentId: comment.id });
-                                        }
-                                      }}
-                                      disabled={deleteCommentMutation.isPending}
-                                      className="h-8 w-8 p-0"
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
+                                    <AlertDialog>
+                                      <AlertDialogTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          disabled={deleteCommentMutation.isPending}
+                                          className="h-8 w-8 p-0"
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </AlertDialogTrigger>
+                                      <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                          <AlertDialogTitle>Delete Comment</AlertDialogTitle>
+                                          <AlertDialogDescription>
+                                            Are you sure you want to delete this comment? This action cannot be undone.
+                                          </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                          <AlertDialogAction
+                                            onClick={() => deleteCommentMutation.mutate({ postId: post.id, commentId: comment.id })}
+                                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                          >
+                                            Delete
+                                          </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                      </AlertDialogContent>
+                                    </AlertDialog>
                                   )}
                               </div>
                             </div>
@@ -421,26 +437,42 @@ export default function DiscussionsFeedPage() {
                       {(user?.role === 'owner' ||
                         (user?.role === 'admin' && post.author.role !== 'owner') ||
                         post.author.id === user?.id) && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              if (window.confirm("Are you sure you want to delete this post?")) {
-                                deletePostMutation.mutate(post.id);
-                              }
-                            }}
-                            disabled={deletePostMutation.isPending}
-                            className="h-8"
-                          >
-                            {deletePostMutation.isPending ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <>
-                                <Trash2 className="h-4 w-4 mr-1" />
-                                <span className="text-xs lg:text-sm">Delete</span>
-                              </>
-                            )}
-                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                disabled={deletePostMutation.isPending}
+                                className="h-8"
+                              >
+                                {deletePostMutation.isPending ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <>
+                                    <Trash2 className="h-4 w-4 mr-1" />
+                                    <span className="text-xs lg:text-sm">Delete</span>
+                                  </>
+                                )}
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete Post</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to delete this post? This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => deletePostMutation.mutate(post.id)}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
                         )}
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
