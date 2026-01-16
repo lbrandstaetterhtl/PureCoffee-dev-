@@ -109,6 +109,19 @@ export class DatabaseStorage implements IStorage {
   constructor() {
     if (process.env.USE_SQLITE === 'true') {
       this.sessionStore = new session.MemoryStore();
+
+      // Initialize stats table
+      const sqlite = getSqlite();
+      if (sqlite) {
+        sqlite.exec(`
+          CREATE TABLE IF NOT EXISTS global_stats (
+            key TEXT PRIMARY KEY, 
+            value INTEGER DEFAULT 0
+          )
+        `);
+        // Ensure the counter row exists
+        sqlite.exec(`INSERT OR IGNORE INTO global_stats (key, value) VALUES ('deleted_users_count', 0)`);
+      }
     } else {
       this.sessionStore = new PostgresSessionStore({
         pool,
@@ -1009,10 +1022,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   getDeletedUsersCount(): number {
+    const sqlite = getSqlite();
+    if (process.env.USE_SQLITE === 'true' && sqlite) {
+      const row = sqlite.prepare("SELECT value FROM global_stats WHERE key = 'deleted_users_count'").get() as { value: number };
+      return row ? row.value : 0;
+    }
     return this.deletedUsersCount;
   }
 
   incrementDeletedUsersCount(): void {
+    const sqlite = getSqlite();
+    if (process.env.USE_SQLITE === 'true' && sqlite) {
+      sqlite.prepare("UPDATE global_stats SET value = value + 1 WHERE key = 'deleted_users_count'").run();
+    }
     this.deletedUsersCount++;
   }
 
