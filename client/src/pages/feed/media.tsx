@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Navbar } from "@/components/layout/navbar";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Post } from "@shared/schema";
@@ -431,20 +431,20 @@ export default function MediaFeedPage() {
                                 {(comment.author.username === user?.username ||
                                   user?.role === "owner" ||
                                   (user?.role === "admin" && comment.author.role !== "owner")) && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => {
-                                      if (window.confirm("Are you sure you want to delete this comment?")) {
-                                        deleteCommentMutation.mutate({ postId: post.id, commentId: comment.id });
-                                      }
-                                    }}
-                                    disabled={deleteCommentMutation.isPending}
-                                    className="h-8 w-8 p-0"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                )}
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => {
+                                        if (window.confirm("Are you sure you want to delete this comment?")) {
+                                          deleteCommentMutation.mutate({ postId: post.id, commentId: comment.id });
+                                        }
+                                      }}
+                                      disabled={deleteCommentMutation.isPending}
+                                      className="h-8 w-8 p-0"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  )}
                               </div>
                             </div>
                             <p className="text-xs lg:text-sm mt-2 pl-10">{comment.content}</p>
@@ -479,27 +479,27 @@ export default function MediaFeedPage() {
                       {(user?.role === "owner" ||
                         (user?.role === "admin" && post.author.role !== "owner") ||
                         post.author.id === user?.id) && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            if (window.confirm("Are you sure you want to delete this post?")) {
-                              deletePostMutation.mutate(post.id);
-                            }
-                          }}
-                          disabled={deletePostMutation.isPending}
-                          className="h-8"
-                        >
-                          {deletePostMutation.isPending ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <>
-                              <Trash2 className="h-4 w-4 mr-1" />
-                              <span className="text-xs lg:text-sm">Delete</span>
-                            </>
-                          )}
-                        </Button>
-                      )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              if (window.confirm("Are you sure you want to delete this post?")) {
+                                deletePostMutation.mutate(post.id);
+                              }
+                            }}
+                            disabled={deletePostMutation.isPending}
+                            className="h-8"
+                          >
+                            {deletePostMutation.isPending ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <>
+                                <Trash2 className="h-4 w-4 mr-1" />
+                                <span className="text-xs lg:text-sm">Delete</span>
+                              </>
+                            )}
+                          </Button>
+                        )}
                       <Button
                         variant="ghost"
                         size="sm"

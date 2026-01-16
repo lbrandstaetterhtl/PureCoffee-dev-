@@ -56,6 +56,7 @@ interface DashboardStats {
   totalReports: number;
   pendingReports: number;
   resolvedReports: number;
+  rejectedReports: number;
 }
 
 // Add new component for stats card skeleton
@@ -118,7 +119,7 @@ export default function AdminDashboard() {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [userFilter, setUserFilter] = useState<"all" | "verified" | "banned">("all");
-  const [reportFilter, setReportFilter] = useState<"all" | "pending" | "resolved">("all");
+  const [reportFilter, setReportFilter] = useState<"all" | "pending" | "resolved" | "rejected">("all");
 
   if (!user || !user.isAdmin) {
     return <Redirect to="/" />;
@@ -210,9 +211,35 @@ export default function AdminDashboard() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/reports"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
       toast({
         title: "Success",
         description: "Report status updated successfully",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteUserMutation = useMutation({
+    mutationFn: async (userId: number) => {
+      const res = await apiRequest("DELETE", `/api/admin/users/${userId}`);
+      if (!res.ok) {
+        throw new Error("Failed to delete user");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
+      toast({
+        title: "Success",
+        description: "User deleted successfully",
       });
     },
     onError: (error) => {
@@ -243,6 +270,7 @@ export default function AdminDashboard() {
   const filteredReports = reports?.filter(report => {
     if (reportFilter === "pending") return report.status === "pending";
     if (reportFilter === "resolved") return report.status === "resolved";
+    if (reportFilter === "rejected") return report.status === "rejected";
     return true;
   });
 
@@ -391,6 +419,15 @@ export default function AdminDashboard() {
                     Resolved Reports
                   </CardDescription>
                   <CardTitle>{stats?.resolvedReports || 0}</CardTitle>
+                </CardHeader>
+              </Card>
+              <Card>
+                <CardHeader>
+                  <CardDescription className="flex items-center gap-2">
+                    <XCircle className="h-4 w-4" />
+                    Rejected Reports
+                  </CardDescription>
+                  <CardTitle>{stats?.rejectedReports || 0}</CardTitle>
                 </CardHeader>
               </Card>
             </div>
@@ -611,6 +648,22 @@ export default function AdminDashboard() {
                                             </>
                                           )}
                                         </Button>
+                                        <Button
+                                          size="sm"
+                                          variant="destructive"
+                                          onClick={() => {
+                                            if (window.confirm(
+                                              `Are you sure you want to permanently delete ${u.username}? This action cannot be undone and will delete all of the user's posts, comments, and other data.`
+                                            )) {
+                                              deleteUserMutation.mutate(u.id);
+                                            }
+                                          }}
+                                          disabled={deleteUserMutation.isPending}
+                                          className="flex items-center gap-1"
+                                        >
+                                          <Trash2 className="h-4 w-4 flex-shrink-0" />
+                                          Delete User
+                                        </Button>
                                         {(user.role === 'owner' || user.role === 'admin') && u.role === 'user' && (
                                           <Button
                                             size="sm"
@@ -668,7 +721,7 @@ export default function AdminDashboard() {
               </Card>
             </TabsContent>
 
-            <TabsContent value="reports" style={{position: 'relative', zIndex: 1}}>
+            <TabsContent value="reports" style={{ position: 'relative', zIndex: 1 }}>
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle>Content Reports</CardTitle>
@@ -693,6 +746,13 @@ export default function AdminDashboard() {
                       onClick={() => setReportFilter("resolved")}
                     >
                       Resolved
+                    </Button>
+                    <Button
+                      variant={reportFilter === "rejected" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setReportFilter("rejected")}
+                    >
+                      Rejected
                     </Button>
                   </div>
                 </CardHeader>

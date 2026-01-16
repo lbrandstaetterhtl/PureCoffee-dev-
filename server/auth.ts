@@ -11,7 +11,7 @@ import { sendVerificationEmail } from "./utils/email";
 
 declare global {
   namespace Express {
-    interface User extends SelectUser {}
+    interface User extends SelectUser { }
   }
 }
 
@@ -67,6 +67,12 @@ export function setupAuth(app: Express, sessionParser: session.RequestHandler) {
         if (!isValid) {
           console.log("Login failed: Invalid password for user:", username);
           return done(null, false, { message: "Invalid username or password" });
+        }
+
+        // Check if user is banned (negative karma)
+        if (user.karma < 0) {
+          console.log("Login blocked: User is banned:", username);
+          return done(null, false, { message: "Your account has been banned. Please contact support." });
         }
 
         console.log("Login successful for user:", username);

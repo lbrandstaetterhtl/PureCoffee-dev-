@@ -54,7 +54,11 @@ app.use((req, res, next) => {
 });
 
 // Validate required environment variables
-const requiredEnvVars = ['SESSION_SECRET', 'DATABASE_URL'];
+const useSqlite = process.env.USE_SQLITE === 'true';
+const requiredEnvVars = useSqlite
+  ? ['SESSION_SECRET']  // SQLite doesn't need DATABASE_URL
+  : ['SESSION_SECRET', 'DATABASE_URL'];  // Neon needs DATABASE_URL
+
 const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
 
 if (missingEnvVars.length > 0) {
@@ -89,11 +93,7 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     }
 
     const port = process.env.PORT || 5000;
-    server.listen({
-      port,
-      host: "0.0.0.0",
-      reusePort: true,
-    }, () => {
+    server.listen(port, "127.0.0.1", () => {
       console.log(`Server started successfully on port ${port}`);
     });
 

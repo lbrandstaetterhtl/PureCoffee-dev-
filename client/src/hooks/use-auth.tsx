@@ -37,7 +37,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return await res.json();
     },
     onSuccess: (user: SelectUser) => {
+      // Clear ALL cached data from previous user
+      queryClient.clear();
+      // Set new user data
       queryClient.setQueryData(["/api/user"], user);
+      // Refetch will happen automatically due to clear()
     },
     onError: (error: Error) => {
       toast({
@@ -54,6 +58,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return await res.json();
     },
     onSuccess: (user: SelectUser) => {
+      // Clear ALL cached data (shouldn't have any, but just in case)
+      queryClient.clear();
+      // Set new user data
       queryClient.setQueryData(["/api/user"], user);
     },
     onError: (error: Error) => {
@@ -70,6 +77,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await apiRequest("POST", "/api/logout");
     },
     onSuccess: () => {
+      // Clear ALL cached data including posts, messages, notifications, etc.
+      queryClient.clear();
+      // Set user to null
       queryClient.setQueryData(["/api/user"], null);
     },
     onError: (error: Error) => {

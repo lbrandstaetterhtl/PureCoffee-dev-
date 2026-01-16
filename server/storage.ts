@@ -1,6 +1,6 @@
 import { User, Post, Comment, Report, InsertUser, InsertMediaPost, Notification, Message, followers, notifications, messages, verificationTokens, commentLikes } from "@shared/schema";
 import session from "express-session";
-import { db } from "./db";
+import { db, getSqlite } from "./db";
 import { eq, and, or, desc, asc, sql } from "drizzle-orm";
 import { users, posts, comments, reports, postLikes } from "@shared/schema";
 import connectPg from "connect-pg-simple";
@@ -13,9 +13,9 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
-  updateUserProfile(id: number, profile: Partial<{ username: string; email: string; profilePictureUrl: string; isAdmin: boolean; role: string; emailVerified: boolean; verified: boolean }>): Promise<User>;
+  updateUserProfile(id: number, profile: Partial<{ username: string; email: string; profilePictureUrl: string; isAdmin: boolean; role: string; emailVerified: boolean; verified: boolean; karma: number }>): Promise<User>;
   updateUserPassword(id: number, password: string): Promise<User>;
-  updateUserKarma(id: number, karma: number): Promise<User>;
+  updateUserKarma(id: number, karma: number): Promise<void>;
 
   createPost(post: Omit<Post, "id" | "createdAt" | "karma">): Promise<Post>;
   getPosts(category?: string): Promise<Post[]>;
@@ -92,7 +92,7 @@ export interface IStorage {
   unlikeComment(userId: number, commentId: number): Promise<void>;
   getUserCommentLike(userId: number, commentId: number): Promise<boolean>;
   getCommentLikes(commentId: number): Promise<number>;
-  
+
   // Add new method for active users count
   getActiveUsersCount(since: Date): Promise<number>;
 }
@@ -101,38 +101,111 @@ export class DatabaseStorage implements IStorage {
   public sessionStore: session.Store;
 
   constructor() {
-    this.sessionStore = new PostgresSessionStore({
-      pool,
-      createTableIfMissing: true,
-    });
+    if (process.env.USE_SQLITE === 'true') {
+      this.sessionStore = new session.MemoryStore();
+    } else {
+      this.sessionStore = new PostgresSessionStore({
+        pool,
+        createTableIfMissing: true,
+      });
+    }
   }
 
   async getUser(id: number): Promise<User | undefined> {
+    const sqlite = getSqlite();
+    if (process.env.USE_SQLITE === 'true' && sqlite) {
+      const user = sqlite.prepare('SELECT * FROM users WHERE id = ?').get(id);
+      if (!user) return undefined;
+
+      return {
+        ...user,
+        emailVerified: Boolean(user.email_verified),
+        isAdmin: Boolean(user.is_admin),
+        verified: Boolean(user.verified),
+        createdAt: new Date(Number(user.created_at) * 1000)
+      };
+    }
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
+    const sqlite = getSqlite();
+    if (process.env.USE_SQLITE === 'true' && sqlite) {
+
+      const user = sqlite.prepare('SELECT * FROM users WHERE username = ?').get(username);
+      if (!user) return undefined;
+
+      return {
+        ...user,
+        emailVerified: Boolean(user.email_verified),
+        isAdmin: Boolean(user.is_admin),
+        verified: Boolean(user.verified),
+        createdAt: new Date(Number(user.created_at) * 1000)
+      };
+    }
     const [user] = await db.select().from(users).where(eq(users.username, username));
     return user;
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
+    const sqlite = getSqlite();
+    if (process.env.USE_SQLITE === 'true' && sqlite) {
+
+      const user = sqlite.prepare('SELECT * FROM users WHERE email = ?').get(email);
+      if (!user) return undefined;
+
+      return {
+        ...user,
+        emailVerified: Boolean(user.email_verified),
+        isAdmin: Boolean(user.is_admin),
+        verified: Boolean(user.verified),
+        createdAt: new Date(Number(user.created_at) * 1000)
+      };
+    }
     const [user] = await db.select().from(users).where(eq(users.email, email));
     return user;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
+    const sqlite = getSqlite();
+    if (process.env.USE_SQLITE === 'true' && sqlite) {
+
+      const stmt = sqlite.prepare(`
+        INSERT INTO users (username, email, password, email_verified, is_admin, role, verified, created_at)
+        VALUES (@username, @email, @password, @emailVerified, 0, 'user', 0, strftime('%s', 'now'))
+      `);
+
+      const info = stmt.run({
+        username: insertUser.username,
+        email: insertUser.email,
+        password: insertUser.password,
+        emailVerified: insertUser.emailVerified ? 1 : 0
+      });
+
+      const user = sqlite.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
+
+      // Convert SQLite integers (0/1) back to booleans for the app
+      return {
+        ...user,
+        emailVerified: Boolean(user.email_verified),
+        isAdmin: Boolean(user.is_admin),
+        verified: Boolean(user.verified),
+        createdAt: new Date(user.created_at * 1000)
+      };
+    }
+
     const [user] = await db.insert(users).values(insertUser).returning();
     return user;
   }
 
-  async updateUserProfile(id: number, profile: Partial<{ username: string; email: string; profilePictureUrl: string; isAdmin: boolean; role: string; emailVerified: boolean; verified: boolean }>): Promise<User> {
+  async updateUserProfile(id: number, profile: Partial<{ username: string; email: string; profilePictureUrl: string; isAdmin: boolean; role: string; emailVerified: boolean; verified: boolean; karma: number }>): Promise<User> {
     const updateData: Record<string, any> = {};
     if (profile.username) updateData.username = profile.username;
     if (profile.email) updateData.email = profile.email;
     if (profile.profilePictureUrl) updateData.profilePictureUrl = profile.profilePictureUrl;
     if (typeof profile.isAdmin !== 'undefined') updateData.isAdmin = profile.isAdmin;
+    if (typeof profile.karma !== 'undefined') updateData.karma = profile.karma;
     if (profile.role) {
       updateData.role = profile.role;
       // Ensure owner is always verified and email verified
@@ -150,6 +223,34 @@ export class DatabaseStorage implements IStorage {
       return this.getUser(id) as Promise<User>;
     }
 
+    const sqlite = getSqlite();
+    if (process.env.USE_SQLITE === 'true' && sqlite) {
+      const sets: string[] = [];
+      const params: any = { id };
+
+      // Manual mapping of fields
+      if (updateData.username) { sets.push('username = @username'); params.username = updateData.username; }
+      if (updateData.email) { sets.push('email = @email'); params.email = updateData.email; }
+      if (updateData.profilePictureUrl) { sets.push('profile_picture_url = @profilePictureUrl'); params.profilePictureUrl = updateData.profilePictureUrl; }
+      if (updateData.isAdmin !== undefined) { sets.push('is_admin = @isAdmin'); params.isAdmin = updateData.isAdmin ? 1 : 0; }
+      if (updateData.karma !== undefined) { sets.push('karma = @karma'); params.karma = updateData.karma; }
+      if (updateData.role) { sets.push('role = @role'); params.role = updateData.role; }
+      if (updateData.emailVerified !== undefined) { sets.push('email_verified = @emailVerified'); params.emailVerified = updateData.emailVerified ? 1 : 0; }
+      if (updateData.verified !== undefined) { sets.push('verified = @verified'); params.verified = updateData.verified ? 1 : 0; }
+
+      const stmt = sqlite.prepare(`UPDATE users SET ${sets.join(', ')} WHERE id = @id`);
+      stmt.run(params);
+
+      const user = sqlite.prepare('SELECT * FROM users WHERE id = ?').get(id);
+      return {
+        ...user,
+        emailVerified: Boolean(user.email_verified),
+        isAdmin: Boolean(user.is_admin),
+        verified: Boolean(user.verified),
+        createdAt: new Date(Number(user.created_at) * 1000)
+      };
+    }
+
     const [user] = await db.update(users)
       .set(updateData)
       .where(eq(users.id, id))
@@ -164,18 +265,74 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
-  async updateUserKarma(id: number, karma: number): Promise<User> {
-    const [user] = await db.update(users).set({ karma }).where(eq(users.id, id)).returning();
-    return user;
-  }
+
 
   async createPost(post: Omit<Post, "id" | "createdAt" | "karma">): Promise<Post> {
+    const sqlite = getSqlite();
+    if (process.env.USE_SQLITE === 'true' && sqlite) {
+      const stmt = sqlite.prepare(`
+        INSERT INTO posts (title, content, author_id, category, karma, media_url, media_type, created_at)
+        VALUES (@title, @content, @authorId, @category, 0, @mediaUrl, @mediaType, strftime('%s', 'now'))
+      `);
+
+      const info = stmt.run({
+        title: post.title,
+        content: post.content,
+        authorId: post.authorId,
+        category: post.category,
+        mediaUrl: post.mediaUrl || null,
+        mediaType: post.mediaType || null
+      });
+
+      const newPost = sqlite.prepare('SELECT * FROM posts WHERE id = ?').get(info.lastInsertRowid);
+      return {
+        ...newPost,
+        createdAt: new Date(Number(newPost.created_at) * 1000)
+      };
+    }
+
     const [newPost] = await db.insert(posts).values(post).returning();
     return newPost;
   }
 
   async getPosts(category?: string): Promise<Post[]> {
     console.log("Getting posts with category:", category);
+    console.log("DEBUG: env.USE_SQLITE:", process.env.USE_SQLITE);
+    const sqlite = getSqlite();
+    console.log("DEBUG: sqlite instance:", sqlite ? "Present" : "Missing");
+
+    if (process.env.USE_SQLITE === 'true' && sqlite) {
+      let query = 'SELECT * FROM posts';
+      const params: any[] = [];
+
+      if (category) {
+        if (category.includes(',')) {
+          const categories = category.split(',').map(c => c.trim());
+          query += ` WHERE category IN (${categories.map(() => '?').join(',')})`;
+          params.push(...categories);
+        } else {
+          query += ' WHERE category = ?';
+          params.push(category);
+        }
+      }
+
+      query += ' ORDER BY created_at DESC';
+
+      const rows = sqlite.prepare(query).all(...params);
+      if (rows.length > 0) console.log('DEBUG: First row keys:', Object.keys(rows[0]), 'Sample created_at:', rows[0].created_at);
+
+      return rows.map((row: any) => ({
+        id: row.id,
+        title: row.title,
+        content: row.content,
+        authorId: row.author_id,
+        category: row.category,
+        karma: row.karma,
+        mediaUrl: row.media_url,
+        mediaType: row.media_type,
+        createdAt: new Date(Number(row.created_at) * 1000)
+      }));
+    }
 
     if (category) {
       // Handle multiple categories separated by comma
@@ -253,31 +410,73 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createReport(report: Omit<Report, "id" | "createdAt" | "status">): Promise<Report> {
-    console.log("Creating report with data:", report); // Debug log
+    const sqlite = getSqlite();
+    if (process.env.USE_SQLITE === 'true' && sqlite) {
+      const { reporterId, postId, commentId, discussionId, reason } = report;
+      const createdAt = Math.floor(Date.now() / 1000);
+      const res = sqlite.prepare('INSERT INTO reports (reporter_id, post_id, comment_id, discussion_id, reason, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(
+        reporterId,
+        postId || null,
+        commentId || null,
+        discussionId || null,
+        reason,
+        'pending',
+        createdAt
+      );
+      return {
+        id: res.lastInsertRowid as number,
+        reporterId,
+        postId: postId || null,
+        commentId: commentId || null,
+        discussionId: discussionId || null,
+        reason,
+        status: 'pending',
+        createdAt: new Date(createdAt * 1000)
+      };
+    }
+
+    console.log("Creating report with data:", report);
     const [newReport] = await db.insert(reports)
       .values({ ...report, status: "pending" })
       .returning();
-    console.log("Created report:", newReport); // Debug log
+    console.log("Created report:", newReport);
     return newReport;
   }
 
   async getReports(): Promise<Report[]> {
-    console.log("Fetching all reports"); // Debug log
+    const sqlite = getSqlite();
+    if (process.env.USE_SQLITE === 'true' && sqlite) {
+      console.log("Fetching all reports (SQLite)");
+      const rows = sqlite.prepare('SELECT * FROM reports ORDER BY created_at DESC').all();
+      return rows.map((row: any) => {
+        let createdAt;
+        if (typeof row.created_at === 'number') {
+          createdAt = new Date(row.created_at * 1000);
+        } else {
+          createdAt = new Date(row.created_at);
+        }
+        return {
+          id: row.id,
+          reason: row.reason,
+          status: row.status,
+          createdAt: createdAt,
+          reporterId: row.reporter_id,
+          postId: row.post_id,
+          commentId: row.comment_id,
+          discussionId: row.discussion_id
+        }
+      });
+    }
+
+    console.log("Fetching all reports (Drizzle)");
     const result = await db
       .select()
       .from(reports)
       .orderBy(desc(reports.createdAt));
-    console.log("Found reports:", result); // Debug log
     return result;
   }
 
-  async updateReportStatus(id: number, status: string): Promise<Report> {
-    const [report] = await db.update(reports)
-      .set({ status })
-      .where(eq(reports.id, id))
-      .returning();
-    return report;
-  }
+
 
   async createVerificationToken(token: { token: string; userId: number; expiresAt: Date }): Promise<void> {
     await db.insert(verificationTokens).values(token);
@@ -296,36 +495,7 @@ export class DatabaseStorage implements IStorage {
     await db.update(users).set({ emailVerified: true }).where(eq(users.id, userId));
   }
 
-  async createPostLike(userId: number, postId: number, isLike: boolean): Promise<void> {
-    await db.insert(postLikes).values({ userId, postId, isLike });
-  }
 
-  async removePostReaction(userId: number, postId: number): Promise<void> {
-    await db.delete(postLikes).where(
-      and(
-        eq(postLikes.userId, userId),
-        eq(postLikes.postId, postId)
-      )
-    );
-  }
-
-  async getUserPostReaction(userId: number, postId: number): Promise<{ isLike: boolean } | null> {
-    const [reaction] = await db.select().from(postLikes).where(
-      and(
-        eq(postLikes.userId, userId),
-        eq(postLikes.postId, postId)
-      )
-    );
-    return reaction ? { isLike: reaction.isLike } : null;
-  }
-
-  async getPostReactions(postId: number): Promise<{ likes: number; dislikes: number }> {
-    const reactions = await db.select().from(postLikes).where(eq(postLikes.postId, postId));
-    return {
-      likes: reactions.filter(r => r.isLike).length,
-      dislikes: reactions.filter(r => !r.isLike).length
-    };
-  }
 
   // Followers
   async followUser(followerId: number, followingId: number): Promise<void> {
@@ -386,19 +556,7 @@ export class DatabaseStorage implements IStorage {
     return !!result;
   }
 
-  // Notifications
-  async createNotification(notification: {
-    userId: number;
-    type: string;
-    fromUserId: number;
-  }): Promise<Notification> {
-    const [result] = await db
-      .insert(notifications)
-      .values(notification)
-      .returning();
 
-    return result;
-  }
 
   async getNotifications(userId: number): Promise<Notification[]> {
     const result = await db
@@ -532,9 +690,8 @@ export class DatabaseStorage implements IStorage {
       await this.deletePostReactions(postId);
       console.log('Deleted reactions for post:', postId);
 
-      // Delete all reports for this post
-      await this.deleteReports(postId);
-      console.log('Deleted reports for post:', postId);
+      // DO NOT delete reports - they should remain for historical tracking
+      // Reports will show that content was deleted when admin resolves them
 
       // Finally delete the post itself
       await db.delete(posts).where(eq(posts.id, postId));
@@ -553,7 +710,23 @@ export class DatabaseStorage implements IStorage {
     return report;
   }
   async deleteUser(id: number): Promise<void> {
-    // Delete all user-related data
+    const sqlite = getSqlite();
+    if (process.env.USE_SQLITE === 'true' && sqlite) {
+      console.log('Deleting user and all related data (SQLite):', id);
+      sqlite.prepare('DELETE FROM messages WHERE sender_id = ? OR receiver_id = ?').run(id, id);
+      sqlite.prepare('DELETE FROM notifications WHERE user_id = ? OR from_user_id = ?').run(id, id);
+      sqlite.prepare('DELETE FROM followers WHERE follower_id = ? OR following_id = ?').run(id, id);
+      sqlite.prepare('DELETE FROM comment_likes WHERE user_id = ?').run(id);
+      sqlite.prepare('DELETE FROM post_likes WHERE user_id = ?').run(id);
+      sqlite.prepare('DELETE FROM comments WHERE author_id = ?').run(id);
+      sqlite.prepare('DELETE FROM reports WHERE reporter_id = ?').run(id);
+      sqlite.prepare('DELETE FROM posts WHERE author_id = ?').run(id);
+      sqlite.prepare('DELETE FROM users WHERE id = ?').run(id);
+      console.log('User deleted successfully:', id);
+      return;
+    }
+
+    // Drizzle: Delete all user-related data
     await db.delete(postLikes).where(eq(postLikes.userId, id));
     await db.delete(comments).where(eq(comments.authorId, id));
     await db.delete(posts).where(eq(posts.authorId, id));
@@ -576,7 +749,6 @@ export class DatabaseStorage implements IStorage {
         eq(messages.receiverId, id)
       )
     );
-    // Finally delete the user
     await db.delete(users).where(eq(users.id, id));
   }
   async updateAllReportsForContent(postId: number | null, commentId: number | null, discussionId: number | null, status: string): Promise<void> {
@@ -591,7 +763,7 @@ export class DatabaseStorage implements IStorage {
         .where(or(...conditions));
     }
   }
-  async deleteReportsForComment(commentId: number):Promise<void>{
+  async deleteReportsForComment(commentId: number): Promise<void> {
     console.log('Deleting reports for comment:', commentId);
     try {
       await db.delete(reports).where(eq(reports.commentId, commentId));
@@ -603,10 +775,20 @@ export class DatabaseStorage implements IStorage {
   }
 
   async likeComment(userId: number, commentId: number): Promise<void> {
+    const sqlite = getSqlite();
+    if (process.env.USE_SQLITE === 'true' && sqlite) {
+      sqlite.prepare('INSERT INTO comment_likes (user_id, comment_id, created_at) VALUES (?, ?, ?)').run(userId, commentId, Math.floor(Date.now() / 1000));
+      return;
+    }
     await db.insert(commentLikes).values({ userId, commentId });
   }
 
   async unlikeComment(userId: number, commentId: number): Promise<void> {
+    const sqlite = getSqlite();
+    if (process.env.USE_SQLITE === 'true' && sqlite) {
+      sqlite.prepare('DELETE FROM comment_likes WHERE user_id = ? AND comment_id = ?').run(userId, commentId);
+      return;
+    }
     await db.delete(commentLikes)
       .where(and(
         eq(commentLikes.userId, userId),
@@ -615,6 +797,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUserCommentLike(userId: number, commentId: number): Promise<boolean> {
+    const sqlite = getSqlite();
+    if (process.env.USE_SQLITE === 'true' && sqlite) {
+      const like = sqlite.prepare('SELECT * FROM comment_likes WHERE user_id = ? AND comment_id = ?').get(userId, commentId);
+      return !!like;
+    }
     const [like] = await db.select()
       .from(commentLikes)
       .where(and(
@@ -625,13 +812,41 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getCommentLikes(commentId: number): Promise<number> {
+    const sqlite = getSqlite();
+    if (process.env.USE_SQLITE === 'true' && sqlite) {
+      const result = sqlite.prepare('SELECT COUNT(*) as count FROM comment_likes WHERE comment_id = ?').get(commentId) as { count: number };
+      return result.count;
+    }
     const result = await db.select({ count: sql<number>`count(*)` })
       .from(commentLikes)
       .where(eq(commentLikes.commentId, commentId));
     return result[0].count;
   }
 
+  async updateUserKarma(userId: number, points: number): Promise<void> {
+    const sqlite = getSqlite();
+    if (process.env.USE_SQLITE === 'true' && sqlite) {
+      sqlite.prepare('UPDATE users SET karma = karma + ? WHERE id = ?').run(points, userId);
+      return;
+    }
+    await db.execute(sql`
+      UPDATE users 
+      SET karma = karma + ${points} 
+      WHERE id = ${userId}
+    `);
+  }
   async getActiveUsersCount(since: Date): Promise<number> {
+    const sqlite = getSqlite();
+    if (process.env.USE_SQLITE === 'true' && sqlite) {
+      const timestamp = Math.floor(since.getTime() / 1000);
+      const rows = sqlite.prepare(`
+        SELECT author_id FROM posts WHERE created_at >= ?
+        UNION
+        SELECT author_id FROM comments WHERE created_at >= ?
+      `).all(timestamp, timestamp);
+      return rows.length;
+    }
+
     // Get active users from posts
     const postsActivity = await db.select({ userId: posts.authorId })
       .from(posts)
@@ -648,6 +863,93 @@ export class DatabaseStorage implements IStorage {
     commentsActivity.forEach(record => activeUserIds.add(record.userId));
 
     return activeUserIds.size;
+  }
+
+  async createPostLike(userId: number, postId: number, isLike: boolean): Promise<void> {
+    const sqlite = getSqlite();
+    if (process.env.USE_SQLITE === 'true' && sqlite) {
+      sqlite.prepare('INSERT INTO post_likes (user_id, post_id, is_like, created_at) VALUES (?, ?, ?, ?)').run(userId, postId, isLike ? 1 : 0, Math.floor(Date.now() / 1000));
+      return;
+    }
+    await db.insert(postLikes).values({ userId, postId, isLike });
+  }
+
+  async removePostReaction(userId: number, postId: number): Promise<void> {
+    const sqlite = getSqlite();
+    if (process.env.USE_SQLITE === 'true' && sqlite) {
+      sqlite.prepare('DELETE FROM post_likes WHERE user_id = ? AND post_id = ?').run(userId, postId);
+      return;
+    }
+    await db.delete(postLikes).where(and(eq(postLikes.userId, userId), eq(postLikes.postId, postId)));
+  }
+
+  async getUserPostReaction(userId: number, postId: number): Promise<{ isLike: boolean } | null> {
+    const sqlite = getSqlite();
+    if (process.env.USE_SQLITE === 'true' && sqlite) {
+      const reaction = sqlite.prepare('SELECT is_like as isLike FROM post_likes WHERE user_id = ? AND post_id = ?').get(userId, postId) as { isLike: number } | undefined;
+      return reaction ? { isLike: !!reaction.isLike } : null;
+    }
+    const [reaction] = await db.select().from(postLikes).where(and(eq(postLikes.userId, userId), eq(postLikes.postId, postId)));
+    return reaction ? { isLike: reaction.isLike } : null;
+  }
+
+  async getPostReactions(postId: number): Promise<{ likes: number; dislikes: number }> {
+    const sqlite = getSqlite();
+    if (process.env.USE_SQLITE === 'true' && sqlite) {
+      const likes = sqlite.prepare('SELECT COUNT(*) as count FROM post_likes WHERE post_id = ? AND is_like = 1').get(postId) as { count: number };
+      const dislikes = sqlite.prepare('SELECT COUNT(*) as count FROM post_likes WHERE post_id = ? AND is_like = 0').get(postId) as { count: number };
+      return { likes: likes.count, dislikes: dislikes.count };
+    }
+    const likes = await db.select({ count: sql<number>`count(*)` }).from(postLikes).where(and(eq(postLikes.postId, postId), eq(postLikes.isLike, true)));
+    const dislikes = await db.select({ count: sql<number>`count(*)` }).from(postLikes).where(and(eq(postLikes.postId, postId), eq(postLikes.isLike, false)));
+    return { likes: likes[0].count, dislikes: dislikes[0].count };
+  }
+
+  async updateReportStatus(id: number, status: string): Promise<Report> {
+    const sqlite = getSqlite();
+    if (process.env.USE_SQLITE === 'true' && sqlite) {
+      sqlite.prepare('UPDATE reports SET status = ? WHERE id = ?').run(status, id);
+      const report = sqlite.prepare('SELECT * FROM reports WHERE id = ?').get(id) as any;
+
+      let createdAt;
+      if (typeof report.created_at === 'number') {
+        createdAt = new Date(report.created_at * 1000);
+      } else {
+        createdAt = new Date(report.created_at);
+      }
+
+      return {
+        id: report.id,
+        reason: report.reason,
+        status: report.status,
+        createdAt: createdAt,
+        reporterId: report.reporter_id,
+        postId: report.post_id,
+        commentId: report.comment_id,
+        discussionId: report.discussion_id
+      };
+    }
+    const [report] = await db.update(reports).set({ status }).where(eq(reports.id, id)).returning();
+    return report;
+  }
+
+  async createNotification(notification: any): Promise<Notification> {
+    const sqlite = getSqlite();
+    if (process.env.USE_SQLITE === 'true' && sqlite) {
+      const { userId, type, fromUserId } = notification;
+      const createdAt = Math.floor(Date.now() / 1000);
+      const res = sqlite.prepare('INSERT INTO notifications (user_id, type, from_user_id, read, created_at) VALUES (?, ?, ?, ?, ?)').run(userId, type, fromUserId, 0, createdAt);
+      return {
+        id: res.lastInsertRowid as number,
+        userId,
+        type,
+        fromUserId,
+        read: false,
+        createdAt: new Date(createdAt * 1000)
+      };
+    }
+    const [newNotification] = await db.insert(notifications).values({ ...notification, read: false }).returning();
+    return newNotification;
   }
 }
 

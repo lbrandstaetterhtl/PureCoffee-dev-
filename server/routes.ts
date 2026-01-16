@@ -33,13 +33,14 @@ const upload = multer({
   storage: multer.diskStorage({
     destination: "./uploads",
     filename: function (req, file, cb) {
+      console.log('Multer processing file:', file);
       // Add timestamp to ensure unique filenames
       const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1E9)}`;
       cb(null, `${uniqueSuffix}${path.extname(file.originalname)}`);
     }
   }),
   fileFilter: (req, file, cb) => {
-    console.log("Processing uploaded file:", file); // Debug log
+    console.log("File filter - Processing uploaded file:", file);
     const allowedTypes = ["image/jpeg", "image/png", "image/gif", "video/mp4", "video/webm"];
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
@@ -70,6 +71,59 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
 
   // Setup auth with session parser
   setupAuth(app, sessionParser);
+
+  // Dedicated multer config for posts
+  const postUpload = multer({
+    storage: multer.diskStorage({
+      destination: "./uploads",
+      filename: function (req, file, cb) {
+        const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1E9)}`;
+        cb(null, `${uniqueSuffix}${path.extname(file.originalname)}`);
+      }
+    }),
+    limits: { fileSize: 50 * 1024 * 1024 } // Increase limit to 50MB
+  });
+
+  console.log("Registering Routes - POST /api/posts initialized");
+
+  // Create post with optional media upload
+  app.post("/api/posts", (req, res, next) => {
+    console.log('Incoming POST /api/posts (Top Level Handler)');
+    console.log('Headers:', req.headers['content-type']);
+    next();
+  }, postUpload.any(), async (req, res) => {
+    try {
+      console.log('POST /api/posts - Processing request');
+
+      if (!req.user) {
+        return res.status(401).send("Not authenticated");
+      }
+
+      const { title, content, category } = req.body;
+
+      // Build post object
+      const postData: any = {
+        authorId: req.user.id,
+        content: content || "",
+        category: category || "general"
+      };
+
+      if (title) postData.title = title;
+
+      if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+        const uploadedFile = req.files[0];
+        console.log('Media file uploaded:', uploadedFile.filename);
+        postData.mediaUrl = uploadedFile.filename;
+        postData.mediaType = req.body.mediaType || (uploadedFile.mimetype.startsWith('image/') ? 'image' : 'video');
+      }
+
+      const post = await storage.createPost(postData);
+      res.status(201).json(post);
+    } catch (error) {
+      console.error('Error creating post:', error);
+      res.status(500).send("Failed to create post");
+    }
+  });
 
   const isAuthenticated = (req: any, res: any, next: any) => {
     if (req.isAuthenticated()) return next();
@@ -255,6 +309,60 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
     }
   });
 
+  // Dedicated multer config for posts to avoid conflicts
+
+
+  // Create post with optional media upload
+  app.post("/api/posts", (req, res, next) => {
+    console.log('Incoming POST /api/posts');
+    console.log('Headers:', req.headers['content-type']);
+    next();
+  }, postUpload.any(), async (req, res) => {
+    try {
+      console.log('POST /api/posts - Request received');
+      console.log('User:', req.user);
+      console.log('Body:', req.body);
+      console.log('Files:', req.files);
+
+      if (!req.user) {
+        console.log('Authentication failed - no user');
+        return res.status(401).send("Not authenticated");
+      }
+
+      const { title, content, category } = req.body;
+
+      if (!content || !category) {
+        return res.status(400).send("Content and category are required");
+      }
+
+      // Build post object
+      const postData: any = {
+        authorId: req.user.id,
+        content,
+        category
+      };
+
+      // Add title if it exists (for media posts)
+      if (title) {
+        postData.title = title;
+      }
+
+      // Handle media upload - check files array
+      if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+        const uploadedFile = req.files[0];
+        console.log('Media file uploaded:', uploadedFile.filename);
+        postData.mediaUrl = uploadedFile.filename;
+        postData.mediaType = req.body.mediaType || (uploadedFile.mimetype.startsWith('image/') ? 'image' : 'video');
+      }
+
+      const post = await storage.createPost(postData);
+      res.status(201).json(post);
+    } catch (error) {
+      console.error('Error creating post:', error);
+      res.status(500).send("Failed to create post");
+    }
+  });
+
   // Update the post reaction handler to use proper SQL updates
   app.post("/api/posts/:id/react", isAuthenticated, async (req, res) => {
     try {
@@ -294,11 +402,7 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
       // Update author's reputation if there's a change
       if (reputationChange !== 0) {
         try {
-          await db.execute(sql`
-            UPDATE users 
-            SET karma = karma + ${reputationChange} 
-            WHERE id = ${postAuthor.id}
-          `);
+          await storage.updateUserKarma(postAuthor.id, reputationChange);
           console.log(`Updated karma for user ${postAuthor.id} by ${reputationChange}`);
         } catch (error) {
           console.error('Error updating karma:', error);
@@ -340,19 +444,11 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
       try {
         if (isLiked) {
           await storage.unlikeComment(userId, commentId);
-          await db.execute(sql`
-            UPDATE users 
-            SET karma = karma - 1 
-            WHERE id = ${commentAuthor.id}
-          `);
+          await storage.updateUserKarma(commentAuthor.id, -1);
           console.log(`Decreased karma for user ${commentAuthor.id}`);
         } else {
           await storage.likeComment(userId, commentId);
-          await db.execute(sql`
-            UPDATE users 
-            SET karma = karma + 1 
-            WHERE id = ${commentAuthor.id}
-          `);
+          await storage.updateUserKarma(commentAuthor.id, 1);
           console.log(`Increased karma for user ${commentAuthor.id}`);
         }
       } catch (error) {
@@ -449,45 +545,66 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
 
       console.log('Processing report:', report); // Debug log
 
-      // If report is resolved, take action based on the reported content
       if (status === "resolved") {
         try {
-          // First update this report's status
-          await storage.updateReportStatus(reportId, status);
-          console.log('Updated report status to resolved'); // Debug log
+          // First update status
+          const updatedReport = await storage.updateReportStatus(reportId, status);
+          console.log('Updated report status to resolved');
 
-          if (report.discussionId) {
-            console.log('Handling discussion deletion:', report.discussionId); // Debug log
-
-            // Delete all comments
-            await storage.deleteComments(report.discussionId);
-            console.log('Deleted discussion comments'); // Debug log
-
-            // Delete reactions
-            await storage.deletePostReactions(report.discussionId);
-            console.log('Deleted discussion reactions'); // Debug log
-
-            // Delete the discussion post itself
-            await storage.deletePost(report.discussionId);
-            console.log('Deleted discussion post'); // Debug log
-          } else if (report.postId) {
-            console.log('Handling post deletion:', report.postId); // Debug log
-            await storage.deleteComments(report.postId);
-            await storage.deletePostReactions(report.postId);
-            await storage.deletePost(report.postId);
-          } else if (report.commentId) {
-            console.log('Handling comment deletion:', report.commentId); // Debug log
-            await storage.deleteComment(report.commentId);
+          // Handle content deletion
+          try {
+            if (report.discussionId) {
+              console.log('Handling discussion deletion:', report.discussionId);
+              await storage.deleteComments(report.discussionId);
+              await storage.deletePostReactions(report.discussionId);
+              await storage.deletePost(report.discussionId);
+            } else if (report.postId) {
+              console.log('Handling post deletion:', report.postId);
+              await storage.deleteComments(report.postId);
+              await storage.deletePostReactions(report.postId);
+              await storage.deletePost(report.postId);
+            } else if (report.commentId) {
+              console.log('Handling comment deletion:', report.commentId);
+              await storage.deleteComment(report.commentId);
+            }
+          } catch (deleteError) {
+            console.error('Error during content deletion:', deleteError);
+            // Continue even if deletion fails
           }
 
-          res.json({ ...report, status });
-        } catch (deleteError) {
-          console.error('Error during content deletion:', deleteError);
-          res.status(500).send(`Failed to delete reported content: ${deleteError.message}`);
+          // Send notification to reporter
+          try {
+            await storage.createNotification({
+              userId: report.reporterId,
+              type: 'report_resolved',
+              fromUserId: req.user!.id
+            });
+          } catch (notifError) {
+            console.error('Error sending resolution notification:', notifError);
+          }
+
+          res.json(updatedReport);
+        } catch (error) {
+          console.error('Error resolving report:', error);
+          res.status(500).send("Failed to resolve report");
         }
       } else {
-        // For rejected reports, just update the status
+        // Rejected or Pending
         const updatedReport = await storage.updateReportStatus(reportId, status);
+
+        if (status === "rejected") {
+          // Send notification to reporter
+          try {
+            await storage.createNotification({
+              userId: report.reporterId,
+              type: 'report_rejected',
+              fromUserId: req.user!.id
+            });
+          } catch (notifError) {
+            console.error('Error sending rejection notification:', notifError);
+          }
+        }
+
         res.json(updatedReport);
       }
     } catch (error) {
@@ -715,11 +832,7 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
         const likes = await storage.getCommentLikes(comment.id);
         if (likes > 0) {
           // Remove reputation gained from comment likes
-          await db.execute(sql`
-            UPDATE users 
-            SET karma = GREATEST(0, karma - ${likes}) 
-            WHERE id = ${comment.authorId}
-          `);
+          await storage.updateUserKarma(comment.authorId, -likes);
           console.log(`Updated karma for comment author ${comment.authorId} by -${likes} due to post deletion`);
         }
       }
@@ -729,12 +842,8 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
       const reputationChange = -(reactions.likes - reactions.dislikes); // Subtract likes-dislikes from reputation
 
       if (reputationChange !== 0) {
-        // Ensure karma doesn't go below 0
-        await db.execute(sql`
-          UPDATE users 
-          SET karma = GREATEST(0, karma + ${reputationChange})
-          WHERE id = ${targetUser.id}
-        `);
+        // Ensure karma doesn't go below 0 handled in storage method
+        await storage.updateUserKarma(targetUser.id, reputationChange);
         console.log(`Updated karma for user ${targetUser.id} by ${reputationChange} due to post deletion`);
       }
 
@@ -744,8 +853,7 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
       // Delete associated reactions
       await storage.deletePostReactions(postId);
 
-      // Delete associated reports
-      await storage.deleteReports(postId);
+      // DO NOT delete reports - they should remain for historical tracking
 
       // Delete the post
       await storage.deletePost(postId);
@@ -788,11 +896,7 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
       const likes = await storage.getCommentLikes(commentId);
       if (likes > 0) {
         // Ensure karma doesn't go below 0
-        await db.execute(sql`
-          UPDATE users 
-          SET karma = GREATEST(0, karma - ${likes})
-          WHERE id = ${targetUser.id}
-        `);
+        await storage.updateUserKarma(targetUser.id, -likes);
         console.log(`Updated karma for user ${targetUser.id} by -${likes} due to comment deletion`);
       }
 
@@ -827,6 +931,7 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
       const totalReports = reports.length;
       const pendingReports = reports.filter(report => report.status === 'pending').length;
       const resolvedReports = reports.filter(report => report.status === 'resolved').length;
+      const rejectedReports = reports.filter(report => report.status === 'rejected').length;
 
       // Calculate active users based on recent activity
       const activeUsers = await storage.getActiveUsersCount(thirtyDaysAgo);
@@ -839,7 +944,8 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
         totalPosts,
         totalReports,
         pendingReports,
-        resolvedReports
+        resolvedReports,
+        rejectedReports
       };
 
       console.log('Fetching all reports');
@@ -900,7 +1006,8 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
     }
   });
 
-  app.get("/api/following/:username", async (req, res)=> {    try {
+  app.get("/api/following/:username", async (req, res) => {
+    try {
       console.log('Fetching following for:', req.params.username);
       const user = await storage.getUserByUsername(req.params.username);
       if (!user) {
@@ -1039,6 +1146,35 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
     } catch (error) {
       console.error('Error updating user:', error);
       res.status(500).send("Failed to update user");
+    }
+  });
+
+  // Delete user endpoint
+  app.delete("/api/admin/users/:id", isAdmin, async (req, res) => {
+    try {
+      const userId = parseInt(req.params.id);
+
+      // Prevent self-deletion
+      if (userId === req.user!.id) {
+        return res.status(400).send("You cannot delete yourself");
+      }
+
+      // Get user to check if they exist and their role
+      const userToDelete = await storage.getUser(userId);
+      if (!userToDelete) {
+        return res.status(404).send("User not found");
+      }
+
+      // Prevent deletion of owner by admins
+      if (userToDelete.role === 'owner' && req.user!.role !== 'owner') {
+        return res.status(403).send("Admins cannot delete owners");
+      }
+
+      await storage.deleteUser(userId);
+      res.json({ message: "User deleted successfully" });
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      res.status(500).send("Failed to delete user");
     }
   });
 

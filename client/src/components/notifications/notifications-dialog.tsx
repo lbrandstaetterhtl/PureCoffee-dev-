@@ -76,9 +76,8 @@ export function NotificationsDialog() {
             {notifications?.map((notification) => (
               <div
                 key={notification.id}
-                className={`flex items-start gap-3 p-3 rounded-lg ${
-                  notification.read ? "bg-muted/50" : "bg-muted"
-                }`}
+                className={`flex items-start gap-3 p-3 rounded-lg ${notification.read ? "bg-muted/50" : "bg-muted"
+                  }`}
                 onClick={() => {
                   if (!notification.read) {
                     markAsReadMutation.mutate(notification.id);
@@ -92,8 +91,12 @@ export function NotificationsDialog() {
                     {notification.type === "new_follower"
                       ? "started following you"
                       : notification.type === "new_message"
-                      ? "sent you a message"
-                      : "interacted with your post"}
+                        ? "sent you a message"
+                        : notification.type === "report_resolved"
+                          ? "resolved your report"
+                          : notification.type === "report_rejected"
+                            ? "reviewed your report (no violation found)"
+                            : "interacted with your post"}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {format(new Date(notification.createdAt), "PPp")}
