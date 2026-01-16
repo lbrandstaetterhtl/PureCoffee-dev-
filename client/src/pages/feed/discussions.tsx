@@ -17,6 +17,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { ReportDialog } from "@/components/report-dialog";
 import { ThumbsUp, ThumbsDown, Flag, Loader2, MessageCircle, Trash2, Heart } from "lucide-react";
 import { format } from "date-fns";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -154,19 +155,6 @@ export default function DiscussionsFeedPage() {
         title: "Error",
         description: error.message,
         variant: "destructive",
-      });
-    },
-  });
-
-  const reportMutation = useMutation<Report, Error, { discussionId: number; reason: string }>({
-    mutationFn: async ({ discussionId, reason }) => {
-      const res = await apiRequest("POST", "/api/reports", { discussionId, reason });
-      return res.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Report submitted",
-        description: "Thank you for helping keep our community safe.",
       });
     },
   });
@@ -474,35 +462,7 @@ export default function DiscussionsFeedPage() {
                             </AlertDialogContent>
                           </AlertDialog>
                         )}
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-8">
-                            <Flag className="h-4 w-4 mr-1" />
-                            <span className="text-xs lg:text-sm">Report</span>
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Report Discussion</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Are you sure you want to report this discussion? This will notify moderators to review the content.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => {
-                                reportMutation.mutate({
-                                  discussionId: post.id,
-                                  reason: "Inappropriate content",
-                                });
-                              }}
-                            >
-                              Report
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                      <ReportDialog type="discussion" id={post.id} />
                     </div>
                   </CardFooter>
                 </Card>

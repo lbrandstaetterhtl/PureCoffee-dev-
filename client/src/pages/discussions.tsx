@@ -32,19 +32,20 @@ import { format } from "date-fns";
 import * as z from 'zod';
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { BadgeCheck } from "lucide-react"; // Import BadgeCheck
+import { ReportDialog } from "@/components/report-dialog";
 
 type PostWithAuthor = Post & {
-  author: { 
-    username: string; 
-    id: number; 
+  author: {
+    username: string;
+    id: number;
     role: string;
-    verified: boolean; 
+    verified: boolean;
   };
   comments: Array<{
     id: number;
     content: string;
-    author: { 
-      username: string; 
+    author: {
+      username: string;
       role: string;
       verified: boolean;
     };
@@ -114,18 +115,7 @@ export default function DiscussionsPage() {
     },
   });
 
-  const reportMutation = useMutation<Report, Error, { discussionId: number; reason: string }>({
-    mutationFn: async ({ discussionId, reason }) => {
-      const res = await apiRequest("POST", "/api/reports", { discussionId, reason });
-      return res.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Report submitted",
-        description: "Thank you for helping keep our community safe.",
-      });
-    },
-  });
+
 
   const reactionMutation = useMutation<Post, Error, { postId: number; isLike: boolean }>({
     mutationFn: async ({ postId, isLike }) => {
@@ -328,19 +318,19 @@ export default function DiscussionsPage() {
                                 {(comment.author.username === user?.username ||
                                   user?.role === 'owner' ||
                                   (user?.role === 'admin' && comment.author.role !== 'owner')) && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => {
-                                      if (window.confirm("Are you sure you want to delete this comment?")) {
-                                        deleteCommentMutation.mutate(comment.id);
-                                      }
-                                    }}
-                                    disabled={deleteCommentMutation.isPending}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                )}
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => {
+                                        if (window.confirm("Are you sure you want to delete this comment?")) {
+                                          deleteCommentMutation.mutate(comment.id);
+                                        }
+                                      }}
+                                      disabled={deleteCommentMutation.isPending}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  )}
                               </div>
                             </div>
                             <p className="text-sm mt-2 pl-10">{comment.content}</p>
@@ -404,50 +394,22 @@ export default function DiscussionsPage() {
                       {(user?.role === 'owner' ||
                         (user?.role === 'admin' && post.author.role !== 'owner') ||
                         post.author.id === user?.id) && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            if (window.confirm("Are you sure you want to delete this discussion?")) {
-                              deletePostMutation.mutate(post.id);
-                            }
-                          }}
-                          disabled={deletePostMutation.isPending}
-                        >
-                          <Trash2 className="h-4 w-4 mr-1" />
-                          Delete
-                        </Button>
-                      )}
-                    </div>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="ghost" size="sm">
-                          <Flag className="h-4 w-4 mr-1" />
-                          Report
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Report Discussion</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Are you sure you want to report this discussion? This will notify moderators to review the content.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => {
-                              reportMutation.mutate({
-                                discussionId: post.id,
-                                reason: "Inappropriate content"
-                              });
+                              if (window.confirm("Are you sure you want to delete this discussion?")) {
+                                deletePostMutation.mutate(post.id);
+                              }
                             }}
+                            disabled={deletePostMutation.isPending}
                           >
-                            Report
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                            <Trash2 className="h-4 w-4 mr-1" />
+                            Delete
+                          </Button>
+                        )}
+                    </div>
+                    <ReportDialog type="discussion" id={post.id} />
                   </CardFooter>
                 </Card>
               ))}

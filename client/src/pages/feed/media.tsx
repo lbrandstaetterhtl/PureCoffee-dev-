@@ -18,6 +18,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { ThumbsUp, ThumbsDown, Flag, Loader2, MessageCircle, Trash2, Plus, Heart, BadgeCheck, ImageOff } from "lucide-react";
+import { ReportDialog } from "@/components/report-dialog";
 import { format } from "date-fns";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -143,19 +144,6 @@ export default function MediaFeedPage() {
       toast({
         title: "Success",
         description: "Comment added successfully",
-      });
-    },
-  });
-
-  const reportMutation = useMutation<Report, Error, { postId: number; reason: string }>({
-    mutationFn: async ({ postId, reason }) => {
-      const res = await apiRequest("POST", "/api/reports", { postId, reason });
-      return res.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Report submitted",
-        description: "Thank you for helping keep our community safe.",
       });
     },
   });
@@ -543,35 +531,7 @@ export default function MediaFeedPage() {
                             </AlertDialogContent>
                           </AlertDialog>
                         )}
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-8">
-                            <Flag className="h-4 w-4 mr-1" />
-                            <span className="text-xs lg:text-sm">Report</span>
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Report Post</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Are you sure you want to report this post? This will notify moderators to review the content.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => {
-                                reportMutation.mutate({
-                                  postId: post.id,
-                                  reason: post.category === "news" ? "Misinformation" : "Inappropriate content",
-                                });
-                              }}
-                            >
-                              Report
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                      <ReportDialog type="post" id={post.id} />
                     </div>
                   </CardFooter>
                 </Card>

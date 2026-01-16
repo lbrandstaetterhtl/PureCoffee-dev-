@@ -31,6 +31,7 @@ import { format } from "date-fns";
 import * as z from 'zod';
 import { Report } from "@shared/schema";
 import UserAvatar from "@/components/UserAvatar"; // Assuming this component exists
+import { ReportDialog } from "@/components/report-dialog";
 
 type PostWithAuthor = Post & {
   author: { username: string; verified: boolean }; // Added verified property
@@ -126,18 +127,7 @@ export default function NewsPage() {
     },
   });
 
-  const reportMutation = useMutation<Report, Error, { postId: number; reason: string }>({
-    mutationFn: async ({ postId, reason }) => {
-      const res = await apiRequest("POST", "/api/reports", { postId, reason });
-      return res.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Report submitted",
-        description: "Thank you for helping combat misinformation.",
-      });
-    },
-  });
+
 
   const reactionMutation = useMutation<Post, Error, { postId: number; isLike: boolean }>({
     mutationFn: async ({ postId, isLike }) => {
@@ -385,19 +375,7 @@ export default function NewsPage() {
                         <span>{post.reactions.dislikes}</span>
                       </Button>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() =>
-                        reportMutation.mutate({
-                          postId: post.id,
-                          reason: "Misinformation",
-                        })
-                      }
-                    >
-                      <Flag className="h-4 w-4 mr-1" />
-                      Report
-                    </Button>
+                    <ReportDialog type="post" id={post.id} />
                   </CardFooter>
                 </Card>
               ))}

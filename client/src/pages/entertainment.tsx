@@ -28,6 +28,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { ThumbsUp, ThumbsDown, Flag, Loader2, Coffee, SmilePlus, MessageCircle, UserCircle } from "lucide-react";
 import { format } from "date-fns";
+import { ReportDialog } from "@/components/report-dialog";
 import * as z from 'zod';
 import { Report } from "@shared/schema";
 
@@ -133,18 +134,7 @@ export default function EntertainmentPage() {
     },
   });
 
-  const reportMutation = useMutation<Report, Error, { postId: number; reason: string }>({
-    mutationFn: async ({ postId, reason }) => {
-      const res = await apiRequest("POST", "/api/reports", { postId, reason });
-      return res.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Report submitted",
-        description: "Thank you for helping keep our community fun and safe.",
-      });
-    },
-  });
+
 
   const onSubmit = async (data: z.infer<typeof insertMediaPostSchema>) => {
     try {
@@ -390,19 +380,7 @@ export default function EntertainmentPage() {
                         <span>{post.reactions.dislikes}</span>
                       </Button>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() =>
-                        reportMutation.mutate({
-                          postId: post.id,
-                          reason: "Inappropriate content",
-                        })
-                      }
-                    >
-                      <Flag className="h-4 w-4 mr-1" />
-                      Report
-                    </Button>
+                    <ReportDialog type="post" id={post.id} />
                   </CardFooter>
                 </Card>
               ))}
