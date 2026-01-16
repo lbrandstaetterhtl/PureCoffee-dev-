@@ -708,12 +708,12 @@ export default function AdminDashboard() {
                                           {u.emailVerified ? (
                                             <>
                                               <AlertTriangle className="h-4 w-4 mr-1" />
-                                              Unverify
+                                              Unverify E-Mail
                                             </>
                                           ) : (
                                             <>
                                               <Check className="h-4 w-4 mr-1" />
-                                              Verify
+                                              Verify E-Mail
                                             </>
                                           )}
                                         </Button>
