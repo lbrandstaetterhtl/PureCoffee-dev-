@@ -78,4 +78,4 @@ A modern, full-stack social media application designed for content sharing and c
     ```bash
     npm run dev
     ```
-    The application will be available at `http://localhost:5000`.
+    The application will be available at `http://localhost:5007`.
