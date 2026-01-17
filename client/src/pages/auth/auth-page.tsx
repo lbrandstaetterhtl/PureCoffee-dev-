@@ -32,7 +32,7 @@ export default function AuthPage() {
           <OpenVerseIcon className="w-32 h-24 text-primary" />
           <div>
             <h1 className="text-2xl font-bold">Osiris</h1>
-            <p className="text-xs text-muted-foreground">Version 1.0</p>
+            <p className="text-xs text-muted-foreground">Version 0.1.2</p>
           </div>
         </div>
       </div>
@@ -82,7 +82,7 @@ export default function AuthPage() {
               <h3 className="font-medium">Latest Updates</h3>
             </div>
             <div className="text-sm text-muted-foreground">
-              <p>✨ New in Version 1.0:</p>
+              <p>✨ New in Version 0.1.2:</p>
               <ul className="list-disc list-inside space-y-1 mt-2">
                 <li>Multi-language Support (EN, DE, IT, ES, FR, ZH)</li>
                 <li>Dark Mode & Theme Customization</li>
@@ -102,7 +102,7 @@ export default function AuthPage() {
             <OpenVerseIcon className="w-64 h-48 text-primary" />
             <div>
               <h1 className="text-4xl font-bold">Osiris</h1>
-              <p className="text-sm text-muted-foreground">Version 1.0</p>
+              <p className="text-sm text-muted-foreground">Version 0.1.2</p>
             </div>
           </div>
 
@@ -150,7 +150,7 @@ export default function AuthPage() {
                 <h3 className="font-semibold">Latest Updates</h3>
               </div>
               <div className="space-y-2 text-sm text-muted-foreground">
-                <p>✨ New in Version 1.0:</p>
+                <p>✨ New in Version 0.1.2:</p>
                 <ul className="list-disc list-inside space-y-1 ml-2">
                   <li>Multi-language Support (EN, DE, IT, ES, FR, ZH)</li>
                   <li>Dark Mode & Theme Customization</li>
