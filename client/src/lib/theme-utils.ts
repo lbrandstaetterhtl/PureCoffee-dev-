@@ -28,7 +28,7 @@ export interface CustomTheme {
     dark: ThemeColors;
 }
 
-// Default theme based on current Open Verse blue theme
+// Default theme based on current Osiris blue theme
 export const defaultTheme: CustomTheme = {
     light: {
         background: "0 0% 100%",

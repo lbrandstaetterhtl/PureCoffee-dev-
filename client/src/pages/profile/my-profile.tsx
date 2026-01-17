@@ -23,6 +23,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Loader2, UserPlus, UserMinus, Trophy, Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
 
@@ -84,6 +85,7 @@ export default function ProfilePage() {
     defaultValues: {
       username: user?.username || "",
       email: user?.email || "",
+      bio: user?.bio || "",
     },
   });
 
@@ -247,6 +249,24 @@ export default function ProfilePage() {
                         <FormLabel>Email</FormLabel>
                         <FormControl>
                           <Input type="email" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={profileForm.control}
+                    name="bio"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Bio</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder="Tell us about yourself..."
+                            className="resize-none"
+                            {...field}
+                            value={field.value || ""}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>

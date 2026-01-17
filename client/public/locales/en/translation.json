@@ -1,6 +1,6 @@
 {
     "navbar": {
-        "brand": "Open Verse",
+        "brand": "Osiris",
         "media_feed": "Media Feed",
         "discussions_feed": "Discussions Feed",
         "messages": "Messages",
@@ -90,8 +90,8 @@
             "restore_user": "Restore Account",
             "verify_user": "Verify User",
             "unverify_user": "Remove Verification",
-            "verify_email": "Verify E-Mail",
-            "unverify_email": "Unverify E-Mail",
+            "verify_email": "Verified E-Mail",
+            "unverify_email": "Unverified E-Mail",
             "verify_user_confirm": "Are you sure you want to verify {{username}}? This will display a verified badge next to their name.",
             "unverify_user_confirm": "Are you sure you want to remove verification from {{username}}? This will remove their verified badge.",
             "restore_user_confirm": "Are you sure you want to restore {{username}}'s account?",

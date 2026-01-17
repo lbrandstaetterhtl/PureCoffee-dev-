@@ -22,7 +22,7 @@ import {
     Check,
     Plus
 } from "lucide-react";
-import { exportTheme, importTheme, loadCustomTheme, defaultTheme } from "@/lib/theme-utils";
+import { exportTheme, importTheme, loadCustomTheme, defaultTheme, applyTheme } from "@/lib/theme-utils";
 import { useToast } from "@/hooks/use-toast";
 import type { ThemeColors, CustomTheme, SavedTheme } from "@/lib/theme-utils";
 import { Input } from "@/components/ui/input";
@@ -37,6 +37,8 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { OpenVerseIcon } from "@/components/icons/open-verse-icon";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 
 export default function ThemeBuilderPage() {
     const { t } = useTranslation();
@@ -49,6 +51,7 @@ export default function ThemeBuilderPage() {
     const [themeName, setThemeName] = useState("My Custom Theme");
     const [activeThemeId, setActiveThemeId] = useState<string | number | null>(null);
     const [isManageOpen, setIsManageOpen] = useState(false);
+    const [unifiedMode, setUnifiedMode] = useState(false);
 
     // Initialize working theme from stored theme
     useEffect(() => {
@@ -60,14 +63,45 @@ export default function ThemeBuilderPage() {
         }
     }, []);
 
+    const handleUnifiedModeChange = (checked: boolean) => {
+        setUnifiedMode(checked);
+        if (checked) {
+            // Apply current mode colors to both modes
+            const currentColors = workingTheme[activeMode];
+            setWorkingTheme(prev => ({
+                light: currentColors,
+                dark: currentColors
+            }));
+            setHasUnsavedChanges(true);
+            toast({
+                title: "Unified Mode Enabled",
+                description: `Applied ${activeMode} colors to both modes.`
+            });
+        }
+    };
+
+    // Live Preview: Apply changes immediately to the document
+    useEffect(() => {
+        const mode = isDark ? "dark" : "light";
+        applyTheme(workingTheme[mode], isDark);
+    }, [workingTheme, isDark]);
+
     const handleColorChange = (key: keyof ThemeColors, value: string) => {
-        setWorkingTheme((prev) => ({
-            ...prev,
-            [activeMode]: {
-                ...prev[activeMode],
-                [key]: value,
-            },
-        }));
+        setWorkingTheme((prev) => {
+            if (unifiedMode) {
+                return {
+                    light: { ...prev.light, [key]: value },
+                    dark: { ...prev.dark, [key]: value },
+                };
+            }
+            return {
+                ...prev,
+                [activeMode]: {
+                    ...prev[activeMode],
+                    [key]: value,
+                },
+            };
+        });
         setHasUnsavedChanges(true);
     };
 
@@ -246,7 +280,7 @@ export default function ThemeBuilderPage() {
                                     <DialogHeader>
                                         <DialogTitle>My Saved Themes</DialogTitle>
                                         <DialogDescription>
-                                            Manage your custom themes across Open Verse.
+                                            Manage your custom themes across Osiris.
                                         </DialogDescription>
                                     </DialogHeader>
                                     <div className="max-h-[300px] overflow-y-auto space-y-2 py-4">
@@ -280,14 +314,16 @@ export default function ThemeBuilderPage() {
                                                         {activeThemeId === theme.id && (
                                                             <Check className="h-4 w-4 text-primary mr-2" />
                                                         )}
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            className="h-8 w-8 text-destructive hover:text-destructive/90 hover:bg-destructive/10"
-                                                            onClick={(e) => handleDeleteTheme(theme.id, e)}
-                                                        >
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </Button>
+                                                        {theme.name !== "Default Blue" && (
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-8 w-8 text-destructive hover:text-destructive/90 hover:bg-destructive/10"
+                                                                onClick={(e) => handleDeleteTheme(theme.id, e)}
+                                                            >
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </Button>
+                                                        )}
                                                     </div>
                                                 </div>
                                             ))
@@ -321,7 +357,7 @@ export default function ThemeBuilderPage() {
                     <Card>
                         <CardHeader>
                             <CardDescription>
-                                Customize every color in Open Verse to make it truly yours. Changes are previewed in real-time. Click <strong>Save Changes</strong> to apply your theme.
+                                Customize every color in Osiris to make it truly yours. Changes are previewed in real-time. Click <strong>Save Changes</strong> to apply your theme.
                             </CardDescription>
                         </CardHeader>
                     </Card>
@@ -344,10 +380,23 @@ export default function ThemeBuilderPage() {
 
                     {/* Mode Tabs */}
                     <Tabs value={activeMode} onValueChange={(v) => setActiveMode(v as "light" | "dark")}>
-                        <TabsList className="grid w-full grid-cols-2">
-                            <TabsTrigger value="light">☀️ Light Mode</TabsTrigger>
-                            <TabsTrigger value="dark">🌙 Dark Mode</TabsTrigger>
-                        </TabsList>
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center space-x-2">
+                                <Checkbox
+                                    id="unified-mode"
+                                    checked={unifiedMode}
+                                    onCheckedChange={handleUnifiedModeChange}
+                                />
+                                <Label htmlFor="unified-mode">Unified Colors (Same for Light/Dark)</Label>
+                            </div>
+                        </div>
+
+                        {!unifiedMode && (
+                            <TabsList className="grid w-full grid-cols-2">
+                                <TabsTrigger value="light">☀️ Light Mode</TabsTrigger>
+                                <TabsTrigger value="dark">🌙 Dark Mode</TabsTrigger>
+                            </TabsList>
+                        )}
 
                         <TabsContent value={activeMode} className="space-y-6 mt-6">
                             {/* Color Sections */}

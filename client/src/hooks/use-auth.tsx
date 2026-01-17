@@ -62,6 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       queryClient.clear();
       // Set new user data
       queryClient.setQueryData(["/api/user"], user);
+      sessionStorage.setItem("isNewUser", "true");
     },
     onError: (error: Error) => {
       toast({

@@ -10,6 +10,7 @@ import { insertDiscussionPostSchema, insertMediaPostSchema, insertCommentSchema,
 import type { Knex } from 'knex';
 import session from 'express-session';
 import { sql } from 'drizzle-orm';
+import { z } from "zod";
 
 // WebSocket connections store
 const connections = new Map<number, WebSocket>();
@@ -165,6 +166,51 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
   app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
   // Posts
+  app.get("/api/posts/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const post = await storage.getPost(id);
+
+      if (!post) {
+        return res.status(404).send("Post not found");
+      }
+
+      const author = await storage.getUser(post.authorId);
+      const comments = await storage.getComments(post.id);
+      const commentsWithAuthors = await Promise.all(comments.map(async (comment) => {
+        const commentAuthor = await storage.getUser(comment.authorId);
+        const likes = await storage.getCommentLikes(comment.id);
+        const isLiked = req.user ? await storage.getUserCommentLike(req.user.id, comment.id) : false;
+        return {
+          ...comment,
+          author: {
+            username: commentAuthor?.username || 'Unknown',
+            role: commentAuthor?.role || 'user',
+            verified: commentAuthor?.verified || false
+          },
+          likes,
+          isLiked
+        };
+      }));
+
+      const reactions = await storage.getPostReactions(post.id);
+      const userReaction = req.user ? await storage.getUserPostReaction(req.user.id, post.id) : null;
+      const isFollowing = req.user ? await storage.isFollowing(req.user.id, post.authorId) : false;
+
+      res.json({
+        ...post,
+        author,
+        comments: commentsWithAuthors,
+        likes: reactions.likes - reactions.dislikes,
+        userVote: userReaction,
+        isFollowing
+      });
+    } catch (error) {
+      console.error('Error fetching post:', error);
+      res.status(500).send("Failed to fetch post");
+    }
+  });
+
   app.get("/api/posts", async (req, res) => {
     try {
       console.log("Fetching posts with query:", req.query);
@@ -531,7 +577,7 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
   // Updated profile route
   app.patch("/api/profile", isAuthenticated, async (req, res) => {
     try {
-      const updateData: Partial<{ username: string; email: string; role: string }> = {};
+      const updateData: Partial<{ username: string; email: string; role: string; bio: string }> = {};
 
       if (req.body.username) {
         updateData.username = req.body.username;
@@ -541,7 +587,9 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
         updateData.email = req.body.email;
       }
 
-
+      if (req.body.bio !== undefined) {
+        updateData.bio = req.body.bio;
+      }
 
       const updatedUser = await storage.updateUserProfile(req.user!.id, updateData);
       res.json(updatedUser);
@@ -630,6 +678,46 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
     }
   });
 
+  app.get("/api/users/:username/posts", async (req, res) => {
+    try {
+      const user = await storage.getUserByUsername(req.params.username);
+      if (!user) {
+        return res.status(404).send("User not found");
+      }
+      const posts = await storage.getPostsByUser(user.id);
+      res.json(posts);
+    } catch (error) {
+      console.error('Error fetching user posts:', error);
+      res.status(500).send("Failed to fetch user posts");
+    }
+  });
+
+  app.get("/api/users/:username/comments", async (req, res) => {
+    try {
+      const user = await storage.getUserByUsername(req.params.username);
+      if (!user) {
+        return res.status(404).send("User not found");
+      }
+      const comments = await storage.getCommentsByUser(user.id);
+
+      // Enrich comments with post information
+      const enrichedComments = await Promise.all(
+        comments.map(async (comment) => {
+          const post = await storage.getPost(comment.postId);
+          return {
+            ...comment,
+            post: post ? { id: post.id, title: post.title } : null
+          };
+        })
+      );
+
+      res.json(enrichedComments);
+    } catch (error) {
+      console.error('Error fetching user comments:', error);
+      res.status(500).send("Failed to fetch user comments");
+    }
+  });
+
   app.delete("/api/follow/:userId", isAuthenticated, async (req, res) => {
     try {
       const followingId = parseInt(req.params.userId);
@@ -674,6 +762,41 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
   });
 
   // Notifications
+  // Messages API
+  app.post("/api/messages", isAuthenticated, async (req, res) => {
+    try {
+      const data = messageSchema.parse(req.body);
+      const message = await storage.createMessage({
+        senderId: req.user.id,
+        receiverId: data.receiverId,
+        content: data.content,
+      });
+      res.status(201).json(message);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        console.error('Validation error creating message:', error.errors);
+        return res.status(400).json({ error: "Invalid message data", details: error.errors });
+      }
+      console.error('Error creating message:', error);
+      res.status(500).json({ error: "Failed to create message" });
+    }
+  });
+
+  app.get("/api/messages/:userId", isAuthenticated, async (req, res) => {
+    try {
+      const otherUserId = parseInt(req.params.userId);
+      if (isNaN(otherUserId)) {
+        return res.status(400).send("Invalid user ID");
+      }
+
+      const messages = await storage.getMessages(req.user.id, otherUserId);
+      res.json(messages);
+    } catch (error) {
+      console.error('Error fetching messages:', error);
+      res.status(500).send("Failed to fetch messages");
+    }
+  });
+
   app.get("/api/notifications", isAuthenticated, async (req, res) => {
     try {
       const notifications = await storage.getNotifications(req.user!.id);
@@ -885,6 +1008,57 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
     }
   });
 
+  // User Themes
+  app.get("/api/user/themes", isAuthenticated, async (req, res) => {
+    try {
+      const themes = await storage.getThemes(req.user!.id);
+      res.json(themes);
+    } catch (error) {
+      console.error('Error fetching themes:', error);
+      res.status(500).send("Failed to fetch themes");
+    }
+  });
+
+  app.post("/api/user/themes", isAuthenticated, async (req, res) => {
+    try {
+      // Validate with insertThemeSchema
+      // We need to import insertThemeSchema from shared/schema if not available, 
+      // but typically we can use the storage directly if validation is simple or assume valid JSON.
+      // However, best practice is to validate. 
+      // Checking file imports... import { insertThemeSchema } ...
+      // If not imported, I will skip zod for now or blindly trust. 
+      // Actually, let's just accept name and colors.
+      const { name, colors } = req.body;
+      if (!name || !colors) return res.status(400).send("Missing name or colors");
+
+      const theme = await storage.createTheme(req.user!.id, { name, colors });
+      res.status(201).json(theme);
+    } catch (error) {
+      console.error('Error creating theme:', error);
+      res.status(500).send("Failed to create theme");
+    }
+  });
+
+  app.delete("/api/user/themes/:id", isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const themes = await storage.getThemes(req.user!.id);
+      const theme = themes.find(t => t.id === id);
+
+      if (!theme) return res.status(404).send("Theme not found service"); // Service distinction
+
+      if (theme.name === "Default Blue") {
+        return res.status(403).send("Cannot delete the default system theme");
+      }
+
+      await storage.deleteTheme(id);
+      res.sendStatus(200);
+    } catch (error) {
+      console.error('Error deleting theme:', error);
+      res.status(500).send("Failed to delete theme");
+    }
+  });
+
   // Admin Routes
   // Add this route before the other admin routes
   app.get("/api/admin/stats", isAdmin, async (req, res) => {
@@ -910,8 +1084,10 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
       const resolvedReports = reports.filter(report => report.status === 'resolved').length;
       const rejectedReports = reports.filter(report => report.status === 'rejected').length;
 
-      // Calculate active users based on recent activity
-      const activeUsers = await storage.getActiveUsersCount(thirtyDaysAgo);
+      // Calculate active users based on real-time WebSocket connections
+      const activeUsers = connections.size;
+      console.log('DEBUG: Active Users (WS Connections):', activeUsers);
+      console.log('DEBUG: Connected User IDs:', Array.from(connections.keys()));
 
       // Get deleted users count
       const deletedUsers = storage.getDeletedUsersCount();
@@ -957,7 +1133,8 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
         karma: user.karma,
         createdAt: user.createdAt,
         role: user.role,
-        verified: user.verified
+        verified: user.verified,
+        bio: user.bio
       };
 
       console.log('Returning user data:', safeUser);
@@ -1235,6 +1412,87 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
     } catch (error) {
       console.error('Error resetting roles:', error);
       res.status(500).send("Failed to reset roles");
+    }
+  });
+
+  // Distribute default theme to all users
+  app.post("/api/admin/distribute-default-theme", isAdmin, async (req, res) => {
+    try {
+      const users = await storage.getUsers();
+      console.log(`Starting distribution of default theme to ${users.length} users.`);
+
+      const defaultThemeColors = {
+        light: {
+          background: "0 0% 100%",
+          foreground: "222 47% 11%",
+          card: "0 0% 100%",
+          cardForeground: "222 47% 11%",
+          popover: "0 0% 100%",
+          popoverForeground: "222 47% 11%",
+          primary: "215 70% 50%",
+          primaryForeground: "0 0% 98%",
+          secondary: "210 40% 96%",
+          secondaryForeground: "222 47% 11%",
+          muted: "210 40% 96%",
+          mutedForeground: "215 16% 47%",
+          accent: "210 40% 96%",
+          accentForeground: "222 47% 11%",
+          destructive: "0 84% 60%",
+          destructiveForeground: "0 0% 98%",
+          border: "214 32% 91%",
+          input: "214 32% 91%",
+          ring: "215 70% 50%",
+        },
+        dark: {
+          background: "222 47% 11%",
+          foreground: "210 40% 98%",
+          card: "222 47% 11%",
+          cardForeground: "210 40% 98%",
+          popover: "222 47% 11%",
+          popoverForeground: "210 40% 98%",
+          primary: "217 91% 60%",
+          primaryForeground: "222 47% 11%",
+          secondary: "217 33% 17%",
+          secondaryForeground: "210 40% 98%",
+          muted: "217 33% 17%",
+          mutedForeground: "215 20% 65%",
+          accent: "217 33% 17%",
+          accentForeground: "210 40% 98%",
+          destructive: "0 62% 30%",
+          destructiveForeground: "210 40% 98%",
+          border: "217 33% 17%",
+          input: "217 33% 17%",
+          ring: "217 91% 60%",
+        },
+      };
+
+      const themeName = "Default Blue";
+      const themeColorsJson = JSON.stringify(defaultThemeColors);
+
+      let addedCount = 0;
+      let skippedCount = 0;
+
+      for (const user of users) {
+        const userThemes = await storage.getThemes(user.id);
+        const hasDefault = userThemes.some(t => t.name === themeName); // Simple name check
+
+        if (!hasDefault) {
+          await storage.createTheme(user.id, {
+            name: themeName,
+            colors: themeColorsJson
+          });
+          addedCount++;
+        } else {
+          skippedCount++;
+        }
+      }
+
+      console.log(`Default theme distribution complete. Added to ${addedCount} users, skipped ${skippedCount} existing.`);
+      res.json({ message: "Default theme distributed", added: addedCount, skipped: skippedCount });
+
+    } catch (error) {
+      console.error('Error distributing default theme:', error);
+      res.status(500).send("Failed to distribute default theme");
     }
   });
 

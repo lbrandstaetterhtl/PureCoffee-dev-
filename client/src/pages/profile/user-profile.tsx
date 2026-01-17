@@ -12,6 +12,10 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { format } from "date-fns";
+import { MessageSquare, Calendar } from "lucide-react";
+import { Post } from "@shared/schema";
 
 export default function UserProfilePage() {
   const { username } = useParams();
@@ -49,6 +53,26 @@ export default function UserProfilePage() {
     queryFn: async () => {
       const res = await fetch(`/api/following/${username}`);
       if (!res.ok) throw new Error("Failed to fetch following");
+      return res.json();
+    },
+    enabled: !!username,
+  });
+
+  const { data: posts, isLoading: postsLoading } = useQuery<Post[]>({
+    queryKey: ["/api/users", username, "posts"],
+    queryFn: async () => {
+      const res = await fetch(`/api/users/${username}/posts`);
+      if (!res.ok) throw new Error("Failed to fetch user posts");
+      return res.json();
+    },
+    enabled: !!username,
+  });
+
+  const { data: comments, isLoading: commentsLoading } = useQuery({
+    queryKey: ["/api/users", username, "comments"],
+    queryFn: async () => {
+      const res = await fetch(`/api/users/${username}/comments`);
+      if (!res.ok) throw new Error("Failed to fetch comments");
       return res.json();
     },
     enabled: !!username,
@@ -135,78 +159,165 @@ export default function UserProfilePage() {
                   <span>{profile.karma} reputation</span>
                 </div>
               </div>
+              {profile.bio && (
+                <p className="mt-4 text-muted-foreground whitespace-pre-wrap">{profile.bio}</p>
+              )}
             </div>
           </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Followers</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {followers?.map((follower) => (
-                  <div key={follower.id} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Link href={`/users/${follower.username}`}>
-                        <UserAvatar user={follower} size="sm" />
-                      </Link>
-                      <Link href={`/users/${follower.username}`}>
-                        <span className="hover:underline">{follower.username}</span>
-                      </Link>
-                    </div>
-                    {user && user.id !== follower.id && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => followMutation.mutate(follower.id)}
-                      >
-                        <UserPlus className="h-4 w-4 mr-2" />
-                        Follow Back
-                      </Button>
-                    )}
-                  </div>
-                ))}
-                {!followers?.length && (
-                  <p className="text-muted-foreground text-center">No followers yet</p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+          <Tabs defaultValue="overview" className="w-full">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="posts">Posts</TabsTrigger>
+              <TabsTrigger value="comments">Comments</TabsTrigger>
+            </TabsList>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Following</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {following?.map((followed) => (
-                  <div key={followed.id} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Link href={`/users/${followed.username}`}>
-                        <UserAvatar user={followed} size="sm" />
-                      </Link>
-                      <Link href={`/users/${followed.username}`}>
-                        <span className="hover:underline">{followed.username}</span>
-                      </Link>
-                    </div>
-                    {user && user.id !== followed.id && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => unfollowMutation.mutate(followed.id)}
-                      >
-                        <UserMinus className="h-4 w-4 mr-2" />
-                        Unfollow
-                      </Button>
+            <TabsContent value="overview" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Followers</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {followers?.map((follower) => (
+                      <div key={follower.id} className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Link href={`/users/${follower.username}`}>
+                            <UserAvatar user={follower} size="sm" />
+                          </Link>
+                          <Link href={`/users/${follower.username}`}>
+                            <span className="hover:underline">{follower.username}</span>
+                          </Link>
+                        </div>
+                        {user && user.id !== follower.id && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => followMutation.mutate(follower.id)}
+                          >
+                            <UserPlus className="h-4 w-4 mr-2" />
+                            Follow Back
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                    {!followers?.length && (
+                      <p className="text-muted-foreground text-center">No followers yet</p>
                     )}
                   </div>
-                ))}
-                {!following?.length && (
-                  <p className="text-muted-foreground text-center">Not following anyone yet</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Following</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {following?.map((followed) => (
+                      <div key={followed.id} className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Link href={`/users/${followed.username}`}>
+                            <UserAvatar user={followed} size="sm" />
+                          </Link>
+                          <Link href={`/users/${followed.username}`}>
+                            <span className="hover:underline">{followed.username}</span>
+                          </Link>
+                        </div>
+                        {user && user.id !== followed.id && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => unfollowMutation.mutate(followed.id)}
+                          >
+                            <UserMinus className="h-4 w-4 mr-2" />
+                            Unfollow
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                    {!following?.length && (
+                      <p className="text-muted-foreground text-center">Not following anyone yet</p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="posts">
+              <div className="space-y-4">
+                {postsLoading ? (
+                  <div className="flex justify-center p-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  </div>
+                ) : posts?.length === 0 ? (
+                  <Card>
+                    <CardContent className="p-8 text-center text-muted-foreground">
+                      No posts yet
+                    </CardContent>
+                  </Card>
+                ) : (
+                  posts?.map((post) => (
+                    <Card key={post.id} className="hover:bg-muted/50 transition-colors">
+                      <CardHeader>
+                        <CardTitle className="text-lg">
+                          <Link href={`/posts/${post.id}?from=profile&username=${username}`} className="hover:underline">
+                            {post.title}
+                          </Link>
+                        </CardTitle>
+                        <div className="flex items-center text-sm text-muted-foreground gap-4">
+                          <span className="flex items-center gap-1">
+                            <Calendar className="h-4 w-4" />
+                            {format(new Date(post.createdAt), "PPP")}
+                          </span>
+                          <span className="capitalize">{post.category}</span>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="line-clamp-3 text-sm text-muted-foreground">
+                          {post.content}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  ))
                 )}
               </div>
-            </CardContent>
-          </Card>
+            </TabsContent>
+
+            <TabsContent value="comments">
+              <div className="space-y-4">
+                {commentsLoading ? (
+                  <div className="flex justify-center p-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  </div>
+                ) : comments?.length === 0 ? (
+                  <Card>
+                    <CardContent className="p-8 text-center text-muted-foreground">
+                      No comments yet
+                    </CardContent>
+                  </Card>
+                ) : (
+                  comments?.map((comment: any) => (
+                    <Card key={comment.id} className="hover:bg-muted/50 transition-colors">
+                      <CardContent className="pt-6">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-sm text-muted-foreground">
+                            {format(new Date(comment.createdAt), "PPp")}
+                          </p>
+                          {comment.post && (
+                            <Link href={`/posts/${comment.post.id}`} className="text-xs text-primary hover:underline">
+                              on: {comment.post.title}
+                            </Link>
+                          )}
+                        </div>
+                        <p className="text-base">{comment.content}</p>
+                      </CardContent>
+                    </Card>
+                  ))
+                )}
+              </div>
+            </TabsContent>
+          </Tabs>
         </div>
       </main>
     </>

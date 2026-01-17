@@ -121,6 +121,61 @@ export function setupAuth(app: Express, sessionParser: session.RequestHandler) {
         emailVerified: false,
       });
 
+      // Add Default Theme for new user
+      try {
+        const defaultThemeColors = {
+          light: {
+            background: "0 0% 100%",
+            foreground: "222 47% 11%",
+            card: "0 0% 100%",
+            cardForeground: "222 47% 11%",
+            popover: "0 0% 100%",
+            popoverForeground: "222 47% 11%",
+            primary: "215 70% 50%",
+            primaryForeground: "0 0% 98%",
+            secondary: "210 40% 96%",
+            secondaryForeground: "222 47% 11%",
+            muted: "210 40% 96%",
+            mutedForeground: "215 16% 47%",
+            accent: "210 40% 96%",
+            accentForeground: "222 47% 11%",
+            destructive: "0 84% 60%",
+            destructiveForeground: "0 0% 98%",
+            border: "214 32% 91%",
+            input: "214 32% 91%",
+            ring: "215 70% 50%",
+          },
+          dark: {
+            background: "222 47% 11%",
+            foreground: "210 40% 98%",
+            card: "222 47% 11%",
+            cardForeground: "210 40% 98%",
+            popover: "222 47% 11%",
+            popoverForeground: "210 40% 98%",
+            primary: "217 91% 60%",
+            primaryForeground: "222 47% 11%",
+            secondary: "217 33% 17%",
+            secondaryForeground: "210 40% 98%",
+            muted: "217 33% 17%",
+            mutedForeground: "215 20% 65%",
+            accent: "217 33% 17%",
+            accentForeground: "210 40% 98%",
+            destructive: "0 62% 30%",
+            destructiveForeground: "210 40% 98%",
+            border: "217 33% 17%",
+            input: "217 33% 17%",
+            ring: "217 91% 60%",
+          },
+        };
+        await storage.createTheme(user.id, {
+          name: "Default Blue",
+          colors: JSON.stringify(defaultThemeColors)
+        });
+      } catch (themeError) {
+        console.error("Failed to create default theme for new user:", themeError);
+        // Don't block registration
+      }
+
       // Only attempt email verification if SendGrid is properly configured
       if (process.env.SENDGRID_API_KEY && process.env.SENDGRID_API_KEY.startsWith('SG.')) {
         try {

@@ -13,7 +13,7 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
-  updateUserProfile(id: number, profile: Partial<{ username: string; email: string; profilePictureUrl: string; isAdmin: boolean; role: string; emailVerified: boolean; verified: boolean; karma: number }>): Promise<User>;
+  updateUserProfile(id: number, profile: Partial<{ username: string; email: string; profilePictureUrl: string; isAdmin: boolean; role: string; emailVerified: boolean; verified: boolean; karma: number; bio: string }>): Promise<User>;
   updateUserPassword(id: number, password: string): Promise<User>;
   updateUserKarma(id: number, karma: number): Promise<void>;
 
@@ -78,6 +78,15 @@ export interface IStorage {
   getMessages(userId1: number, userId2: number): Promise<Message[]>;
   getUnreadMessageCount(userId: number): Promise<number>;
 
+  // Messages
+  createMessage(message: {
+    senderId: number;
+    receiverId: number;
+    content: string;
+  }): Promise<Message>;
+  getMessages(userId1: number, userId2: number): Promise<Message[]>;
+  getUnreadMessageCount(userId: number): Promise<number>;
+
   deleteComments(postId: number): Promise<void>;
   deletePostReactions(postId: number): Promise<void>;
   deleteReports(postId: number): Promise<void>;
@@ -98,8 +107,6 @@ export interface IStorage {
   getActiveUsersCount(since: Date): Promise<number>;
 
   // Add methods for tracking deleted users
-  getDeletedUsersCount(): number;
-  incrementDeletedUsersCount(): void;
   getDeletedUsersCount(): number;
   incrementDeletedUsersCount(): void;
 
@@ -128,6 +135,13 @@ export class DatabaseStorage implements IStorage {
         `);
         // Ensure the counter row exists
         sqlite.exec(`INSERT OR IGNORE INTO global_stats (key, value) VALUES ('deleted_users_count', 0)`);
+
+        // Add bio column if it doesn't exist
+        try {
+          sqlite.exec('ALTER TABLE users ADD COLUMN bio TEXT');
+        } catch (e) {
+          // Column likely exists
+        }
       }
     } else {
       this.sessionStore = new PostgresSessionStore({
@@ -225,13 +239,14 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
-  async updateUserProfile(id: number, profile: Partial<{ username: string; email: string; profilePictureUrl: string; isAdmin: boolean; role: string; emailVerified: boolean; verified: boolean; karma: number }>): Promise<User> {
+  async updateUserProfile(id: number, profile: Partial<{ username: string; email: string; profilePictureUrl: string; isAdmin: boolean; role: string; emailVerified: boolean; verified: boolean; karma: number; bio: string }>): Promise<User> {
     const updateData: Record<string, any> = {};
     if (profile.username) updateData.username = profile.username;
     if (profile.email) updateData.email = profile.email;
     if (profile.profilePictureUrl) updateData.profilePictureUrl = profile.profilePictureUrl;
     if (typeof profile.isAdmin !== 'undefined') updateData.isAdmin = profile.isAdmin;
     if (typeof profile.karma !== 'undefined') updateData.karma = profile.karma;
+    if (profile.bio) updateData.bio = profile.bio;
     if (profile.role) {
       updateData.role = profile.role;
       // Ensure owner is always verified and email verified
@@ -260,6 +275,7 @@ export class DatabaseStorage implements IStorage {
       if (updateData.profilePictureUrl) { sets.push('profile_picture_url = @profilePictureUrl'); params.profilePictureUrl = updateData.profilePictureUrl; }
       if (updateData.isAdmin !== undefined) { sets.push('is_admin = @isAdmin'); params.isAdmin = updateData.isAdmin ? 1 : 0; }
       if (updateData.karma !== undefined) { sets.push('karma = @karma'); params.karma = updateData.karma; }
+      if (updateData.bio) { sets.push('bio = @bio'); params.bio = updateData.bio; }
       if (updateData.role) { sets.push('role = @role'); params.role = updateData.role; }
       if (updateData.emailVerified !== undefined) { sets.push('email_verified = @emailVerified'); params.emailVerified = updateData.emailVerified ? 1 : 0; }
       if (updateData.verified !== undefined) { sets.push('verified = @verified'); params.verified = updateData.verified ? 1 : 0; }
@@ -402,7 +418,48 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
+  async getPostsByUser(userId: number): Promise<Post[]> {
+    const sqlite = getSqlite();
+    if (process.env.USE_SQLITE === 'true' && sqlite) {
+      const allPosts = sqlite.prepare('SELECT * FROM posts WHERE author_id = ? ORDER BY created_at DESC').all(userId);
+
+      return allPosts.map((row: any) => ({
+        id: row.id,
+        title: row.title,
+        content: row.content,
+        authorId: row.author_id,
+        category: row.category,
+        karma: row.karma,
+        mediaUrl: row.media_url,
+        mediaType: row.media_type,
+        createdAt: new Date(Number(row.created_at) * 1000)
+      }));
+    }
+
+    return await db.select()
+      .from(posts)
+      .where(eq(posts.authorId, userId))
+      .orderBy(desc(posts.createdAt));
+  }
+
   async getPost(id: number): Promise<Post | undefined> {
+    const sqlite = getSqlite();
+    if (process.env.USE_SQLITE === 'true' && sqlite) {
+      const row = sqlite.prepare('SELECT * FROM posts WHERE id = ?').get(id) as any;
+      if (!row) return undefined;
+
+      return {
+        id: row.id,
+        title: row.title,
+        content: row.content,
+        authorId: row.author_id,
+        category: row.category,
+        karma: row.karma,
+        mediaUrl: row.media_url,
+        mediaType: row.media_type,
+        createdAt: new Date(Number(row.created_at) * 1000)
+      };
+    }
     const [post] = await db.select().from(posts).where(eq(posts.id, id));
     return post;
   }
@@ -460,6 +517,22 @@ export class DatabaseStorage implements IStorage {
 
   async deleteComment(id: number): Promise<void> {
     await db.delete(comments).where(eq(comments.id, id));
+  }
+
+  async getCommentsByUser(userId: number): Promise<Comment[]> {
+    const sqlite = getSqlite();
+    if (process.env.USE_SQLITE === 'true' && sqlite) {
+      const rows = sqlite.prepare('SELECT * FROM comments WHERE author_id = ? ORDER BY created_at DESC').all(userId);
+      return rows.map((comment: any) => ({
+        id: comment.id,
+        postId: comment.post_id,
+        content: comment.content,
+        authorId: comment.author_id,
+        karma: comment.karma,
+        createdAt: new Date(Number(comment.created_at) * 1000)
+      }));
+    }
+    return db.select().from(comments).where(eq(comments.authorId, userId)).orderBy(desc(comments.createdAt));
   }
 
   async createReport(report: Omit<Report, "id" | "createdAt" | "status">): Promise<Report> {
@@ -646,17 +719,64 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Messages
-  async createMessage(message: {
-    senderId: number;
-    receiverId: number;
-    content: string;
-  }): Promise<Message> {
-    const [result] = await db
-      .insert(messages)
-      .values(message)
-      .returning();
 
-    return result;
+
+  async createMessage(message: { senderId: number; receiverId: number; content: string }): Promise<Message> {
+    const sqlite = getSqlite();
+    if (process.env.USE_SQLITE === 'true' && sqlite) {
+      try {
+        console.log("Attempting to create message (SQLite):", message);
+        const createdAt = Math.floor(Date.now() / 1000);
+        const stmt = sqlite.prepare('INSERT INTO messages (sender_id, receiver_id, content, read, created_at) VALUES (?, ?, ?, 0, ?)');
+        const res = stmt.run(
+          message.senderId,
+          message.receiverId,
+          message.content,
+          createdAt
+        );
+        console.log("Message created, ID:", res.lastInsertRowid);
+
+        // Create notification
+        try {
+          await this.createNotification({
+            userId: message.receiverId,
+            type: "new_message",
+            fromUserId: message.senderId
+          });
+        } catch (notifErr) {
+          console.error("Failed to create message notification:", notifErr);
+          // Don't fail the request if notification fails
+        }
+
+        return {
+          id: res.lastInsertRowid as number,
+          senderId: message.senderId,
+          receiverId: message.receiverId,
+          content: message.content,
+          read: false,
+          createdAt: new Date(createdAt * 1000)
+        };
+      } catch (err: any) {
+        console.error("SQLite createMessage error:", err.message);
+        throw err;
+      }
+    }
+
+    console.log("Falling back to Drizzle implementation for createMessage");
+    const [newMessage] = await db.insert(messages).values(message).returning();
+
+    // Create notification
+    try {
+      await this.createNotification({
+        userId: message.receiverId,
+        type: "new_message",
+        fromUserId: message.senderId
+      });
+    } catch (notifErr) {
+      console.error("Failed to create message notification:", notifErr);
+    }
+
+    return newMessage;
   }
 
   async getMessages(userId1: number, userId2: number): Promise<Message[]> {
@@ -731,9 +851,9 @@ export class DatabaseStorage implements IStorage {
         )
       );
       console.log('Successfully deleted reports for post:', postId);
-    } catch (error) {
-      console.error('Error deleting reports:', error);
-      throw error;
+    } catch (err: any) {
+      console.error("SQLite createMessage error string:", err.message);
+      throw err;
     }
   }
 

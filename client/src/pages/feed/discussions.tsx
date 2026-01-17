@@ -252,7 +252,9 @@ export default function DiscussionsFeedPage() {
                           <UserAvatar user={post.author} size="sm" />
                         </Link>
                         <div className="min-w-0">
-                          <CardTitle className="text-base lg:text-lg truncate">{post.title}</CardTitle>
+                          <Link href={`/posts/${post.id}`} className="hover:underline">
+                            <CardTitle className="text-base lg:text-lg truncate">{post.title}</CardTitle>
+                          </Link>
                           <p className="text-xs lg:text-sm text-muted-foreground">
                             <Link href={`/users/${post.author.username}`} className="hover:underline">
                               {post.author.username}

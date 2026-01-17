@@ -6,6 +6,7 @@ import { AuthProvider } from "@/hooks/use-auth";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { ProtectedRoute } from "./lib/protected-route";
 import { useWebSocket } from "@/hooks/use-websocket";
+import { NewUserDialog } from "@/components/profile/new-user-dialog";
 
 // Pages
 import AuthPage from "@/pages/auth/auth-page";
@@ -18,6 +19,7 @@ import AdminDashboard from "@/pages/admin/dashboard";
 // Feed Pages
 import MediaFeedPage from "@/pages/feed/media";
 import DiscussionsFeedPage from "@/pages/feed/discussions";
+import PostViewPage from "@/pages/feed/post-view";
 
 // Post Pages
 import PostDiscussionsPage from "@/pages/post/discussions";
@@ -38,6 +40,7 @@ function Router() {
       {/* Feed Routes */}
       <ProtectedRoute path="/feed/media" component={MediaFeedPage} />
       <ProtectedRoute path="/feed/discussions" component={DiscussionsFeedPage} />
+      <ProtectedRoute path="/posts/:id" component={PostViewPage} />
 
       {/* Post Routes */}
       <ProtectedRoute path="/post/discussions" component={PostDiscussionsPage} />
@@ -79,6 +82,7 @@ function App() {
         <AuthProvider>
           <GlobalThemeManager />
           <Router />
+          <NewUserDialog />
           <Toaster />
         </AuthProvider>
       </ThemeProvider>

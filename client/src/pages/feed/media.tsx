@@ -268,7 +268,9 @@ export default function MediaFeedPage() {
                           <UserAvatar user={post.author} size="sm" />
                         </Link>
                         <div className="min-w-0">
-                          <CardTitle className="text-base lg:text-lg truncate">{post.title}</CardTitle>
+                          <Link href={`/posts/${post.id}`} className="hover:underline">
+                            <CardTitle className="text-base lg:text-lg truncate">{post.title}</CardTitle>
+                          </Link>
                           <div className="flex items-center gap-1">
                             <Link href={`/users/${post.author.username}`} className="hover:underline text-xs lg:text-sm text-muted-foreground">
                               {post.author.username}

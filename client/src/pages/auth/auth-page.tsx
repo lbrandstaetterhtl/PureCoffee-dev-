@@ -29,9 +29,9 @@ export default function AuthPage() {
       {/* Mobile Header - Only visible on mobile */}
       <div className="lg:hidden p-6 bg-primary/5">
         <div className="flex items-center space-x-2">
-          <OpenVerseIcon className="h-12 w-12 text-primary" />
+          <OpenVerseIcon className="w-32 h-24 text-primary" />
           <div>
-            <h1 className="text-2xl font-bold">Open Verse</h1>
+            <h1 className="text-2xl font-bold">Osiris</h1>
             <p className="text-xs text-muted-foreground">Version 1.0</p>
           </div>
         </div>
@@ -52,7 +52,7 @@ export default function AuthPage() {
 
           {/* Feature Highlights - Mobile Only */}
           <div className="lg:hidden space-y-4 py-6">
-            <h2 className="text-lg font-semibold text-center">Why Join Open Verse?</h2>
+            <h2 className="text-lg font-semibold text-center">Why Join Osiris?</h2>
             <div className="grid grid-cols-2 gap-4">
               <div className="p-3 bg-primary/5 rounded-lg">
                 <Newspaper className="h-5 w-5 text-primary mb-2" />
@@ -99,9 +99,9 @@ export default function AuthPage() {
       <div className="hidden lg:flex flex-col justify-center p-8 bg-primary/5">
         <div className="mx-auto max-w-md w-full">
           <div className="flex items-center space-x-2 mb-8">
-            <OpenVerseIcon className="h-20 w-20 text-primary" />
+            <OpenVerseIcon className="w-64 h-48 text-primary" />
             <div>
-              <h1 className="text-4xl font-bold">Open Verse</h1>
+              <h1 className="text-4xl font-bold">Osiris</h1>
               <p className="text-sm text-muted-foreground">Version 1.0</p>
             </div>
           </div>

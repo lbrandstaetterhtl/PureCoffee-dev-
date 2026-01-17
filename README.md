@@ -1,11 +1,13 @@
-# Open Verse 🌌
+# Osiris 🌌
 
 **Version:** 1.0.0  
 **An Open Social Universe**
 
-Open Verse is a modern social platform designed to connect people across diverse communities. Share your stories, engage in meaningful discussions, and explore a universe of perspectives on news, politics, entertainment, and more.
+Osiris is a modern social platform designed to connect people across diverse communities. Share your stories, engage in meaningful discussions, and explore a universe of perspectives on news, politics, entertainment, and more.
 
 ### ✨ New in Version 1.0
+*   **Real-time Messaging System** 💬
+*   **Notification System** 🔔
 *   **Multi-language Support** (EN, DE, IT, ES, FR, ZH)
 *   **Dark Mode & Theme Customization**
 *   **Advanced Admin Dashboard**

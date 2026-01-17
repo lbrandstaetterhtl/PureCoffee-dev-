@@ -42,7 +42,7 @@ import {
   TrendingUp, UserCheck, UserX, MessagesSquare, Trash2, ShieldOff
 } from "lucide-react";
 import { useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -137,6 +137,7 @@ export default function AdminDashboard() {
   const { t } = useTranslation();
   const { user } = useAuth();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [userFilter, setUserFilter] = useState<"all" | "verified" | "banned">("all");
   const [reportFilter, setReportFilter] = useState<"all" | "pending" | "resolved" | "rejected">("all");
@@ -578,13 +579,18 @@ export default function AdminDashboard() {
                                 <TableCell>{u.email}</TableCell>
                                 <TableCell>
                                   <div className="flex gap-2">
-                                    <Badge variant={u.emailVerified ? "default" : "secondary"} className="whitespace-nowrap">
-                                      {u.emailVerified ? t('admin.users_table.verify_email') : t('admin.users_table.unverify_email')}
-                                    </Badge>
-                                    {u.verified && (
+                                    {u.verified ? (
                                       <Badge variant="default" className="bg-blue-500 flex items-center gap-1">
                                         <BadgeCheck className="h-4 w-4 text-white flex-shrink-0" />
-                                        <span className="text-sm">{t('admin.stats.verified_users')}</span>
+                                        <span className="text-sm">Verified User</span>
+                                      </Badge>
+                                    ) : u.emailVerified ? (
+                                      <Badge variant="default" className="whitespace-nowrap">
+                                        {t('admin.users_table.verify_email')}
+                                      </Badge>
+                                    ) : (
+                                      <Badge variant="secondary" className="whitespace-nowrap">
+                                        {t('admin.users_table.unverify_email')}
                                       </Badge>
                                     )}
                                     {u.karma < 0 && (
@@ -993,7 +999,15 @@ export default function AdminDashboard() {
                           </TableHeader>
                           <TableBody>
                             {filteredReports?.map((report) => (
-                              <TableRow key={report.id}>
+                              <TableRow
+                                key={report.id}
+                                className={report.status === "pending" && (report.content?.type === 'post' || report.content?.type === 'discussion') && report.postId ? "cursor-pointer hover:bg-muted/50" : ""}
+                                onClick={() => {
+                                  if (report.status === "pending" && (report.content?.type === 'post' || report.content?.type === 'discussion') && report.postId) {
+                                    setLocation(`/posts/${report.postId}?from=admin`);
+                                  }
+                                }}
+                              >
                                 <TableCell>{report.reporter?.username}</TableCell>
                                 <TableCell>
                                   {report.content?.author?.username || 'Unknown'}

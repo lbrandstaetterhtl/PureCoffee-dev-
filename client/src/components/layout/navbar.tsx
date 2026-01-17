@@ -30,7 +30,7 @@ export function Navbar() {
       <div className="container flex h-16 items-center px-4 relative z-[100]">
         <div className="mr-4 hidden md:flex">
           <Link href="/" className="flex items-center space-x-2">
-            <OpenVerseIcon className="h-16 w-16 text-primary" />
+            <OpenVerseIcon className="w-[8.75rem] h-28 mt-3 text-primary" />
             <span className="font-bold">{t('navbar.brand')}</span>
           </Link>
         </div>
