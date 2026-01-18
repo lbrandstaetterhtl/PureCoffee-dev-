@@ -218,7 +218,7 @@ export default function DiscussionsFeedPage() {
           <div className="lg:hidden mb-6">
             <h1 className="text-2xl font-bold mb-4">{t('feed.discussions_title')}</h1>
             <Button asChild size="sm" className="whitespace-nowrap">
-              <Link href="/post/discussion">
+              <Link href="/post/discussions">
                 {t('feed.create_discussion')}
               </Link>
             </Button>
@@ -227,7 +227,7 @@ export default function DiscussionsFeedPage() {
           <div className="hidden lg:flex items-center justify-between mb-8">
             <h1 className="text-4xl font-bold">{t('feed.discussions_title')}</h1>
             <Button asChild>
-              <Link href="/post/discussion">{t('feed.create_discussion')}</Link>
+              <Link href="/post/discussions">{t('feed.create_discussion')}</Link>
             </Button>
           </div>
 
