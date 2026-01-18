@@ -266,7 +266,51 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
     }
   });
 
+  app.delete("/api/posts/:id", isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const post = await storage.getPost(id);
 
+      if (!post) {
+        return res.status(404).send("Post not found");
+      }
+
+      // Check permissions: Author, Owner, or Admin
+      const user = req.user!;
+      if (post.authorId !== user.id && user.role !== 'owner' && user.role !== 'admin') {
+        return res.status(403).send("Forbidden");
+      }
+
+      await storage.deletePost(id);
+      res.sendStatus(204);
+    } catch (error) {
+      console.error('Error deleting post:', error);
+      res.status(500).send("Failed to delete post");
+    }
+  });
+
+  app.delete("/api/discussions/:id", isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const post = await storage.getPost(id);
+
+      if (!post) {
+        return res.status(404).send("Discussion not found");
+      }
+
+      // Check permissions
+      const user = req.user!;
+      if (post.authorId !== user.id && user.role !== 'owner' && user.role !== 'admin') {
+        return res.status(403).send("Forbidden");
+      }
+
+      await storage.deletePost(id);
+      res.sendStatus(204);
+    } catch (error) {
+      console.error('Error deleting discussion:', error);
+      res.status(500).send("Failed to delete discussion");
+    }
+  });
 
   // Comments
   app.get("/api/posts/:postId/comments", async (req, res) => {
@@ -422,6 +466,33 @@ export async function registerRoutes(app: Express, db: Knex<any, unknown[]>): Pr
     } catch (error) {
       console.error('Error updating comment like:', error);
       res.status(500).send("Failed to update comment like");
+    }
+  });
+
+  app.delete("/api/comments/:id", isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const comment = await storage.getComment(id);
+
+      if (!comment) {
+        return res.status(404).send("Comment not found");
+      }
+
+      // Check permissions (Author, Owner, Admin)
+      const user = req.user!;
+      const isAuthor = comment.authorId === user.id;
+      const isOwner = user.role === 'owner';
+      const isAdmin = user.role === 'admin';
+
+      if (!isAuthor && !isOwner && !isAdmin) {
+        return res.status(403).send("Forbidden");
+      }
+
+      await storage.deleteComment(id);
+      res.sendStatus(204);
+    } catch (error) {
+      console.error('Error deleting comment:', error);
+      res.status(500).send("Failed to delete comment");
     }
   });
 

@@ -818,6 +818,29 @@ export class DatabaseStorage implements IStorage {
     return result[0].count;
   }
 
+  async deleteReportsForComment(commentId: number): Promise<void> {
+    const sqlite = getSqlite();
+    if (process.env.USE_SQLITE === 'true' && sqlite) {
+      sqlite.prepare('DELETE FROM reports WHERE comment_id = ?').run(commentId);
+      return;
+    }
+    await db.delete(reports).where(eq(reports.commentId, commentId));
+  }
+
+  async deleteComment(id: number): Promise<void> {
+    const sqlite = getSqlite();
+    if (process.env.USE_SQLITE === 'true' && sqlite) {
+      sqlite.prepare('DELETE FROM comment_likes WHERE comment_id = ?').run(id);
+      sqlite.prepare('DELETE FROM reports WHERE comment_id = ?').run(id);
+      sqlite.prepare('DELETE FROM comments WHERE id = ?').run(id);
+      return;
+    }
+
+    await db.delete(commentLikes).where(eq(commentLikes.commentId, id));
+    await this.deleteReportsForComment(id);
+    await db.delete(comments).where(eq(comments.id, id));
+  }
+
   async deleteComments(postId: number): Promise<void> {
     console.log('Deleting comments for post:', postId);
     try {
