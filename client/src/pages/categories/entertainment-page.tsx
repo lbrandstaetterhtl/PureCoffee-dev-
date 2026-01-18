@@ -96,7 +96,7 @@ export default function EntertainmentPage() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/posts", "entertainment"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
       form.reset();
       toast({
         title: "Success",
@@ -119,7 +119,7 @@ export default function EntertainmentPage() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/posts", "entertainment"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
       toast({
         title: "Comment added",
         description: "Your comment has been posted successfully.",
@@ -133,7 +133,7 @@ export default function EntertainmentPage() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/posts", "entertainment"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
     },
   });
 

@@ -91,7 +91,7 @@ export default function PostViewPage() {
             return res.json();
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["/api/posts", postId] });
+            queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
         },
     });
 
@@ -101,7 +101,7 @@ export default function PostViewPage() {
             if (!res.ok) throw new Error(await res.text());
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["/api/posts", postId] });
+            queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
             toast({ title: "Success", description: "User followed successfully" });
         },
     });
@@ -112,7 +112,7 @@ export default function PostViewPage() {
             if (!res.ok) throw new Error(await res.text());
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["/api/posts", postId] });
+            queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
             toast({ title: "Success", description: "User unfollowed successfully" });
         },
     });
@@ -124,7 +124,7 @@ export default function PostViewPage() {
             return res.json();
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["/api/posts", postId] });
+            queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
             toast({ title: "Success", description: "Comment added successfully" });
         },
     });
@@ -135,7 +135,7 @@ export default function PostViewPage() {
             if (!res.ok) throw new Error(await res.text());
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["/api/posts", postId] });
+            queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
             toast({ title: "Success", description: "Comment deleted successfully" });
         },
     });
@@ -146,7 +146,7 @@ export default function PostViewPage() {
             return res.json();
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["/api/posts", postId] });
+            queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
         },
     });
 

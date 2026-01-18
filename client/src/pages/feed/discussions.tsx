@@ -79,7 +79,7 @@ export default function DiscussionsFeedPage() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/posts", "discussion"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
     },
   });
 
@@ -92,7 +92,7 @@ export default function DiscussionsFeedPage() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/posts", "discussion"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
       queryClient.invalidateQueries({ queryKey: ["/api/following"] });
       toast({
         title: "Success",
@@ -117,7 +117,7 @@ export default function DiscussionsFeedPage() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/posts", "discussion"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
       queryClient.invalidateQueries({ queryKey: ["/api/following"] });
       toast({
         title: "Success",
@@ -140,7 +140,7 @@ export default function DiscussionsFeedPage() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/posts", "discussion"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
       toast({
         title: "Success",
         description: "Comment added successfully",
@@ -164,7 +164,7 @@ export default function DiscussionsFeedPage() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/posts", "discussion"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
       toast({
         title: "Success",
         description: "Post deleted successfully",
@@ -188,7 +188,7 @@ export default function DiscussionsFeedPage() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/posts", "discussion"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
       toast({
         title: "Success",
         description: "Comment deleted successfully",
@@ -209,7 +209,7 @@ export default function DiscussionsFeedPage() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/posts", "discussion"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
     },
   });
 

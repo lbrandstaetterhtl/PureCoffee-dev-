@@ -97,7 +97,7 @@ export default function NewsPage() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/posts", "news"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
       form.reset();
       toast({
         title: "News posted",
@@ -112,7 +112,7 @@ export default function NewsPage() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/posts", "news"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
       toast({
         title: "Comment added",
         description: "Your comment has been posted successfully.",
@@ -126,7 +126,7 @@ export default function NewsPage() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/posts", "news"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
     },
   });
 
@@ -138,7 +138,7 @@ export default function NewsPage() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/posts", "news"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
     },
   });
 

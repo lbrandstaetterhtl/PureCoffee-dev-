@@ -85,7 +85,7 @@ export default function MediaFeedPage() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/posts", "media"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
     },
   });
 
@@ -98,7 +98,7 @@ export default function MediaFeedPage() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/posts", "media"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
       queryClient.invalidateQueries({ queryKey: ["/api/following"] });
       toast({
         title: "Success",
@@ -123,7 +123,7 @@ export default function MediaFeedPage() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/posts", "media"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
       queryClient.invalidateQueries({ queryKey: ["/api/following"] });
       toast({
         title: "Success",
@@ -145,7 +145,7 @@ export default function MediaFeedPage() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/posts", "media"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
       toast({
         title: "Success",
         description: "Comment added successfully",
@@ -162,7 +162,7 @@ export default function MediaFeedPage() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/posts", "media"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
       toast({
         title: "Success",
         description: "Post deleted successfully",
@@ -186,7 +186,7 @@ export default function MediaFeedPage() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/posts", "media"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
       toast({
         title: "Success",
         description: "Comment deleted successfully",
@@ -207,7 +207,7 @@ export default function MediaFeedPage() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/posts", "media"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
     },
   });
 
