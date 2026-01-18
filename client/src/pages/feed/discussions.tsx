@@ -68,6 +68,9 @@ export default function DiscussionsFeedPage() {
       }
       return res.json();
     },
+    refetchInterval: 1000,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
   });
 
   const reactionMutation = useMutation<Post, Error, { discussionId: number; isLike: boolean }>({

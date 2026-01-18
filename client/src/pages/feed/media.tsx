@@ -74,6 +74,9 @@ export default function MediaFeedPage() {
       console.log("Fetched posts:", data);
       return data;
     },
+    refetchInterval: 1000,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
   });
 
   const reactionMutation = useMutation<Post, Error, { postId: number; isLike: boolean }>({
