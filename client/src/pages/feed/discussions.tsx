@@ -75,7 +75,7 @@ export default function DiscussionsFeedPage() {
 
   const reactionMutation = useMutation<Post, Error, { discussionId: number; isLike: boolean }>({
     mutationFn: async ({ discussionId, isLike }) => {
-      const res = await apiRequest("POST", `/api/discussions/${discussionId}/react`, { isLike });
+      const res = await apiRequest("POST", `/api/posts/${discussionId}/react`, { isLike });
       return res.json();
     },
     onSuccess: () => {
