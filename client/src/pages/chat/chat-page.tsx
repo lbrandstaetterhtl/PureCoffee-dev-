@@ -8,7 +8,7 @@ import { UserAvatar } from "@/components/ui/user-avatar";
 import { format } from "date-fns";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Loader2, Info, Menu } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
@@ -37,6 +37,9 @@ export default function ChatPage() {
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [messageInput, setMessageInput] = useState("");
   const [showUserList, setShowUserList] = useState(true); // For mobile toggle
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+
 
   // Fetch both followers and following
   const { data: following } = useQuery<User[]>({
@@ -81,6 +84,12 @@ export default function ChatPage() {
     refetchOnWindowFocus: true,
     refetchOnMount: true,
   });
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages]);
 
   const sendMessageMutation = useMutation({
     mutationFn: async ({ receiverId, content }: { receiverId: number; content: string }) => {
@@ -179,7 +188,10 @@ export default function ChatPage() {
               </CardHeader>
               <CardContent className="p-0">
                 {/* Messages */}
-                <div className="h-[calc(100vh-400px)] lg:h-[400px] overflow-y-auto p-4 space-y-4">
+                <div
+                  ref={scrollRef}
+                  className="h-[calc(100vh-400px)] lg:h-[400px] overflow-y-auto p-4 space-y-4"
+                >
                   {messagesLoading ? (
                     <div className="flex justify-center py-4">
                       <Loader2 className="h-6 w-6 animate-spin" />
@@ -199,8 +211,8 @@ export default function ChatPage() {
                         />
                         <div
                           className={`rounded-lg p-3 max-w-[70%] ${message.senderId === user?.id
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-muted"
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted"
                             }`}
                         >
                           <p className="text-sm break-words">{message.content}</p>
