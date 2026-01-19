@@ -258,13 +258,16 @@ export default function DiscussionsFeedPage() {
                           <Link href={`/posts/${post.id}`} className="hover:underline">
                             <CardTitle className="text-base lg:text-lg truncate">{post.title}</CardTitle>
                           </Link>
-                          <p className="text-xs lg:text-sm text-muted-foreground">
+                          <div className="flex items-center gap-1 text-xs lg:text-sm text-muted-foreground">
                             <Link href={`/users/${post.author.username}`} className="hover:underline">
                               {post.author.username}
                             </Link>
+                            {post.author.verified && (
+                              <BadgeCheck className="h-4 w-4 text-blue-500" />
+                            )}
                             {" • "}
                             {format(new Date(post.createdAt), "PPP")}
-                          </p>
+                          </div>
                         </div>
                       </div>
                       {post.author.id !== user?.id && (
@@ -337,9 +340,14 @@ export default function DiscussionsFeedPage() {
                                   <UserAvatar user={comment.author} size="sm" />
                                 </Link>
                                 <div className="min-w-0">
-                                  <Link href={`/users/${comment.author.username}`} className="text-xs lg:text-sm font-medium block truncate hover:underline">
-                                    {comment.author.username}
-                                  </Link>
+                                  <div className="flex items-center gap-1">
+                                    <Link href={`/users/${comment.author.username}`} className="text-xs lg:text-sm font-medium block truncate hover:underline">
+                                      {comment.author.username}
+                                    </Link>
+                                    {comment.author.verified && (
+                                      <BadgeCheck className="h-4 w-4 text-blue-500" />
+                                    )}
+                                  </div>
                                   <span className="text-xs text-muted-foreground block">
                                     {format(new Date(comment.createdAt), "PPp")}
                                   </span>
